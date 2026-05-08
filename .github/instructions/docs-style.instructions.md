@@ -90,7 +90,7 @@ The SDK is a transport layer—it sends your prompt to the CLI over JSON-RPC.
 
 ## Horizontal rules
 
-Do not use `---` horizontal rules as section dividers. Use headings to separate sections.
+Do not use `---` as a horizontal rule to visually separate sections in the body of an article. Use headings to separate sections instead. This does not apply to YAML frontmatter delimiters.
 
 ## Index.md files
 
