@@ -100,7 +100,7 @@ If you are writing a new section with substantive content, create a named file (
 
 ## Code snippets
 
-* Do not modify code block contents. The SDK team's `docs-validate` workflow validates all code examples.
+* Only modify code block contents when necessary. Keep all examples passing the SDK team's `docs-validate` workflow, rerun validation after changes, and use `docs-validate: skip` or `docs-validate: hidden` markers when appropriate.
 
 ## Voice and tone
 
