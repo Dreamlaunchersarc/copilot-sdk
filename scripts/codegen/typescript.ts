@@ -188,6 +188,70 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     return rewrite(root) as JSONSchema7;
 }
 
+/**
+ * Map an external JSON Schema file name (e.g. `"session-events.schema.json"`)
+ * to the relative module path that the generated rpc.ts file should import
+ * the corresponding types from. Adding a new entry here is the only place
+ * the SDK needs to know about a new published schema.
+ */
+const EXTERNAL_SCHEMA_TS_MODULE: Record<string, string> = {
+    "session-events.schema.json": "./session-events.js",
+};
+
+/**
+ * Walk a schema and rewrite cross-schema `$ref` pointers
+ * (those that target a different `*.schema.json` document, e.g.
+ * `"session-events.schema.json#/definitions/SessionEvent"`) into the
+ * `tsType` extension that `json-schema-to-typescript` understands. The
+ * referenced type name is recorded in `imports` so the caller can emit a
+ * corresponding `import type` statement at the top of the generated file.
+ *
+ * Returns the rewritten schema and the set of imports to emit, keyed by
+ * the relative module path.
+ */
+function rewriteExternalRefsForTypeScript(schema: JSONSchema7): {
+    schema: JSONSchema7;
+    imports: Map<string, Set<string>>;
+} {
+    const imports = new Map<string, Set<string>>();
+
+    const visit = (value: unknown): unknown => {
+        if (Array.isArray(value)) {
+            return value.map(visit);
+        }
+        if (!value || typeof value !== "object") {
+            return value;
+        }
+        const node = value as Record<string, unknown>;
+        if (typeof node.$ref === "string" && !node.$ref.startsWith("#")) {
+            const [schemaFile, fragment] = node.$ref.split("#");
+            const module = EXTERNAL_SCHEMA_TS_MODULE[schemaFile];
+            if (module && fragment) {
+                const typeName = fragment.split("/").pop();
+                if (typeName) {
+                    let bucket = imports.get(module);
+                    if (!bucket) {
+                        bucket = new Set();
+                        imports.set(module, bucket);
+                    }
+                    bucket.add(typeName);
+                    // Drop the $ref and replace with json-schema-to-typescript's
+                    // `tsType` extension so the compiler emits the bare type name
+                    // (which we will satisfy via an import statement) instead of
+                    // attempting to inline a non-existent local definition.
+                    const description = typeof node.description === "string" ? node.description : undefined;
+                    const next: Record<string, unknown> = { tsType: typeName };
+                    if (description) next.description = description;
+                    return next;
+                }
+            }
+        }
+        return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, visit(v)]));
+    };
+
+    return { schema: visit(structuredClone(schema)) as JSONSchema7, imports };
+}
+
 // ── Session Events ──────────────────────────────────────────────────────────
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
@@ -403,7 +467,21 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     const schemaForCompile = combinedSchema;
 
-    const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile), "_RpcSchemaRoot", {
+    const { schema: schemaWithoutExternalRefs, imports: externalImports } =
+        rewriteExternalRefsForTypeScript(schemaForCompile);
+
+    if (externalImports.size > 0) {
+        // Insert `import type` statements right after the banner so the
+        // referenced types are in scope where `tsType` substituted them.
+        const externalImportLines: string[] = [];
+        for (const [module, names] of [...externalImports.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+            const sortedNames = [...names].sort();
+            externalImportLines.push(`import type { ${sortedNames.join(", ")} } from "${module}";`);
+        }
+        lines.splice(1, 0, externalImportLines.join("\n") + "\n");
+    }
+
+    const compiled = await compile(normalizeSchemaForTypeScript(schemaWithoutExternalRefs), "_RpcSchemaRoot", {
         bannerComment: "",
         additionalProperties: false,
         unreachableDefinitions: true,

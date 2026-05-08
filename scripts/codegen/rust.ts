@@ -40,6 +40,56 @@ const execFileAsync = promisify(execFile);
 const GENERATED_DIR = path.join(REPO_ROOT, "rust/src/generated");
 
 /**
+ * Mapping from external schema filename to the Rust module path that hosts
+ * the corresponding canonical types. When the API schema references a type
+ * via a cross-schema $ref like
+ * `session-events.schema.json#/definitions/SessionEvent`, the codegen emits
+ * a `use <module>::<TypeName>;` rather than generating a duplicate copy.
+ *
+ * The module path here is what the generated `api_types.rs` will reference;
+ * for the SDK that's the hand-written `crate::types` module.
+ */
+const EXTERNAL_SCHEMA_RUST_USE: Record<string, string> = {
+	"session-events.schema.json": "crate::types",
+};
+
+/**
+ * Walk an arbitrary JSON value and collect any `$ref`s of the form
+ * `<file>.schema.json#/definitions/<TypeName>` (or `$defs`) where `<file>`
+ * is one of the keys in {@link EXTERNAL_SCHEMA_RUST_USE}. Returns a map of
+ * Rust module path → set of imported type names.
+ */
+function collectExternalRustImports(schema: unknown): Map<string, Set<string>> {
+	const imports = new Map<string, Set<string>>();
+	const visited = new WeakSet<object>();
+	const walk = (node: unknown): void => {
+		if (!node || typeof node !== "object") return;
+		if (visited.has(node as object)) return;
+		visited.add(node as object);
+		if (Array.isArray(node)) {
+			for (const item of node) walk(item);
+			return;
+		}
+		const obj = node as Record<string, unknown>;
+		const ref = obj.$ref;
+		if (typeof ref === "string") {
+			const m = ref.match(/^([\w.-]+\.schema\.json)#\/(?:definitions|\$defs)\/(.+)$/);
+			if (m) {
+				const [, schemaFile, typeName] = m;
+				const modulePath = EXTERNAL_SCHEMA_RUST_USE[schemaFile];
+				if (modulePath) {
+					if (!imports.has(modulePath)) imports.set(modulePath, new Set());
+					imports.get(modulePath)!.add(typeName);
+				}
+			}
+		}
+		for (const v of Object.values(obj)) walk(v);
+	};
+	walk(schema);
+	return imports;
+}
+
+/**
  * JSON property names that should be emitted as a hand-authored newtype rather
  * than `String`. The newtype is `#[serde(transparent)]`, so the wire format is
  * unchanged. Add new entries sparingly — these only fire when a schema field
@@ -945,7 +995,23 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	out.push("");
 	out.push("use serde::{Deserialize, Serialize};");
 	out.push("");
-	out.push("use crate::types::{RequestId, SessionId};");
+
+	// Merge `crate::types` imports: hand-written core types (RequestId,
+	// SessionId) plus any types referenced via cross-schema $ref into
+	// session-events.schema.json (e.g., SessionEvent). Any other module
+	// referenced via cross-schema $ref gets its own `use` line.
+	const externalImports = collectExternalRustImports(apiSchema);
+	const cratTypeImports = new Set<string>(["RequestId", "SessionId"]);
+	for (const name of externalImports.get("crate::types") ?? []) {
+		cratTypeImports.add(name);
+	}
+	out.push(`use crate::types::{${[...cratTypeImports].sort().join(", ")}};`);
+	for (const [modulePath, names] of [...externalImports.entries()].sort(([a], [b]) =>
+		a.localeCompare(b),
+	)) {
+		if (modulePath === "crate::types") continue;
+		out.push(`use ${modulePath}::{${[...names].sort().join(", ")}};`);
+	}
 	out.push("");
 
 	// Method constants

@@ -42,6 +42,38 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Map an external JSON Schema file (e.g. `"session-events.schema.json"`) to
+ * the C# namespace where its codegen-generated types live. When Rpc.cs
+ * references types that come from a different schema document via a
+ * cross-schema `$ref`, we emit the corresponding `using` directive at the
+ * top of the file so the generated code resolves the type from the
+ * existing canonical location instead of duplicating the definition.
+ */
+const EXTERNAL_SCHEMA_CS_NAMESPACE: Record<string, string> = {
+    "session-events.schema.json": "GitHub.Copilot.SDK",
+};
+
+/** Recursively walk a JSON Schema and return the set of external schema files referenced by `$ref`. */
+function collectExternalSchemaRefs(schema: unknown): Set<string> {
+    const refs = new Set<string>();
+    const visit = (value: unknown): void => {
+        if (Array.isArray(value)) {
+            for (const item of value) visit(item);
+            return;
+        }
+        if (!value || typeof value !== "object") return;
+        const node = value as Record<string, unknown>;
+        if (typeof node.$ref === "string" && !node.$ref.startsWith("#")) {
+            const [schemaFile] = node.$ref.split("#");
+            if (schemaFile) refs.add(schemaFile);
+        }
+        for (const child of Object.values(node)) visit(child);
+    };
+    visit(schema);
+    return refs;
+}
+
 // ── C# type rename overrides ────────────────────────────────────────────────
 // Map generated class names to shorter public-facing names.
 // Applied to base classes AND their derived variants (e.g., FooBar → Bar, FooBazShell → BarShell).
@@ -1599,6 +1631,12 @@ function generateRpcCode(schema: ApiSchema): string {
     if (schema.clientSession) clientSessionParts = emitClientSessionApiRegistration(schema.clientSession, classes);
 
     const lines: string[] = [];
+    const externalSchemaFiles = [...collectExternalSchemaRefs(schema)].sort();
+    const externalUsings = externalSchemaFiles
+        .map((file) => EXTERNAL_SCHEMA_CS_NAMESPACE[file])
+        .filter((ns): ns is string => Boolean(ns));
+    const externalUsingsBlock =
+        externalUsings.length > 0 ? externalUsings.map((ns) => `using ${ns};`).join("\n") + "\n" : "";
     lines.push(`${COPYRIGHT}
 
 // AUTO-GENERATED FILE - DO NOT EDIT
@@ -1613,7 +1651,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-
+${externalUsingsBlock}
 namespace GitHub.Copilot.SDK.Rpc;
 
 /// <summary>Diagnostic IDs for the Copilot SDK.</summary>

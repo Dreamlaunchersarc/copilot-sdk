@@ -49,6 +49,145 @@ const execFileAsync = promisify(execFile);
 // Go initialisms that should be all-caps
 const goInitialisms = new Set(["id", "ui", "uri", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc", "mime"]);
 
+/**
+ * Cross-schema `$ref` mapping for Go: which schema files publish their
+ * canonical types into which Go package. After session events were moved
+ * into `package rpc`, any `$ref` pointing at session-events.schema.json
+ * resolves to the bare type name in the same package as generated_rpc.go,
+ * so the imported package is empty (i.e., bare-name reference).
+ */
+const EXTERNAL_SCHEMA_GO_PACKAGE: Record<string, string> = {
+    "session-events.schema.json": "",
+};
+
+/**
+ * Walk a schema and rewrite cross-schema `$ref` pointers into local
+ * `#/definitions/__ExternalRef_<Name>` pointers, adding empty placeholder
+ * definitions so quicktype emits a removable stub struct instead of trying
+ * to fetch the foreign schema. The placeholder names and the packages they
+ * map to are returned so the caller can post-process the generated source:
+ * delete the stub struct, rename references to the real type name (with
+ * the package prefix when non-empty), and any imports get added separately.
+ *
+ * Mutates `schema` in place.
+ */
+function rewriteExternalRefsForGo(
+    schema: JSONSchema7 & { definitions?: Record<string, JSONSchema7> }
+): {
+    placeholderNames: Map<string, { realName: string; pkg: string }>;
+    imports: Set<string>;
+} {
+    const placeholderNames = new Map<string, { realName: string; pkg: string }>();
+    const imports = new Set<string>();
+    const placeholderFor = (typeName: string): string => `__ExternalRef_${typeName}`;
+    const visit = (value: unknown): void => {
+        if (Array.isArray(value)) {
+            for (const item of value) visit(item);
+            return;
+        }
+        if (!value || typeof value !== "object") return;
+        const node = value as Record<string, unknown>;
+        if (typeof node.$ref === "string" && !node.$ref.startsWith("#")) {
+            const [schemaFile, fragment] = node.$ref.split("#");
+            const pkg = EXTERNAL_SCHEMA_GO_PACKAGE[schemaFile];
+            if (pkg !== undefined && fragment) {
+                const typeName = fragment.split("/").pop();
+                if (typeName) {
+                    const placeholder = placeholderFor(typeName);
+                    placeholderNames.set(placeholder, { realName: typeName, pkg });
+                    if (pkg) imports.add(pkg);
+                    node.$ref = `#/definitions/${placeholder}`;
+                }
+            }
+        }
+        for (const child of Object.values(node)) visit(child);
+    };
+    visit(schema);
+
+    if (placeholderNames.size > 0) {
+        if (!schema.definitions) schema.definitions = {};
+        for (const placeholder of placeholderNames.keys()) {
+            if (!schema.definitions[placeholder]) {
+                // Structurally unique placeholder so quicktype doesn't
+                // deduplicate it with another `{type:object}` definition.
+                const markerProperty = `__externalRefMarker_${placeholder}`;
+                schema.definitions[placeholder] = {
+                    type: "object",
+                    additionalProperties: false,
+                    title: placeholder,
+                    properties: {
+                        [markerProperty]: { type: "string" },
+                    },
+                    required: [markerProperty],
+                };
+            }
+        }
+    }
+
+    return { placeholderNames, imports };
+}
+
+/**
+ * Convert a placeholder definition name (e.g. `__ExternalRef_SessionEvent`)
+ * to the PascalCase identifier quicktype generates from it
+ * (e.g. `ExternalRefSessionEvent`).
+ */
+function placeholderToQuicktypeIdentifierGo(placeholder: string): string {
+    return placeholder
+        .replace(/^_+/, "")
+        .split("_")
+        .map((segment) => (segment ? segment[0].toUpperCase() + segment.slice(1) : ""))
+        .join("");
+}
+
+/**
+ * After quicktype runs, strip the struct (and any helper enum) it emitted
+ * for each placeholder schema, and substitute references to the placeholder
+ * identifier with the real cross-schema type name (optionally prefixed with
+ * a Go package selector when the type lives in a different package).
+ */
+function postProcessExternalRefsForGo(
+    code: string,
+    placeholderToReal: Map<string, { realName: string; pkg: string }>
+): string {
+    for (const [placeholder, { realName, pkg }] of placeholderToReal) {
+        const quicktypeName = placeholderToQuicktypeIdentifierGo(placeholder);
+        const replacement = pkg ? `${pkg}.${realName}` : realName;
+
+        // Remove the struct block: starts with `type <Name> struct {`,
+        // ends at the next top-level `}` line.
+        code = code.replace(
+            new RegExp(`(?:^|\\n)(?:// [^\\n]*\\n)?type ${quicktypeName} struct \\{[\\s\\S]*?\\n\\}\\n`, "g"),
+            "\n"
+        );
+
+        // Remove any helper enum types quicktype generated whose name starts
+        // with the placeholder identifier (e.g.
+        // `type ExternalRefSessionEventExternalRefMarkerExternalRefSessionEvent string`
+        // plus its const block).
+        code = code.replace(
+            new RegExp(
+                `(?:^|\\n)type ${quicktypeName}\\w+\\s+(?:string|int|float64|bool)\\b[\\s\\S]*?(?=\\n(?:type|const|var|func|//\\s|$))`,
+                "g"
+            ),
+            "\n"
+        );
+        code = code.replace(
+            new RegExp(
+                `(?:^|\\n)const \\(\\s*\\n(?:[^\\n]*${quicktypeName}\\w*[^\\n]*\\n)+\\s*\\)`,
+                "g"
+            ),
+            "\n"
+        );
+
+        // Substitute remaining references to the placeholder identifier
+        // with the real type name.
+        code = code.replace(new RegExp(`\\b${quicktypeName}\\b`, "g"), replacement);
+    }
+
+    return code.replace(/\n{3,}/g, "\n\n");
+}
+
 function toPascalCase(s: string): string {
     return s
         .split(/[._]/)
@@ -85,7 +224,10 @@ function postProcessEnumConstants(code: string): string {
             .split(/[._-]/)
             .map((w) => goInitialisms.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))
             .join("");
-        const desired = typeName + valuePascal;
+        // Fall back to a friendly name when the value contains characters that
+        // can't form a valid Go identifier suffix (e.g., the literal "*").
+        const sanitized = identifierSafeSuffix(valuePascal, value);
+        const desired = typeName + sanitized;
         if (constName !== desired) {
             renames.set(constName, desired);
         }
@@ -113,6 +255,51 @@ function postProcessEnumConstants(code: string): string {
     });
 
     return code;
+}
+
+/**
+ * Convert a candidate suffix to one that is safe to append to a Go identifier.
+ * Returns the candidate unchanged when it is a valid identifier component
+ * (letters, digits, underscores). Otherwise maps well-known special characters
+ * to friendly names (e.g., "*" → "All", "?" → "Question") and falls back to
+ * "Value" for unrepresentable input.
+ */
+function identifierSafeSuffix(candidate: string, originalValue: string): string {
+    // Already a valid Go identifier component.
+    if (/^[A-Za-z0-9_]+$/.test(candidate) && candidate.length > 0) {
+        return candidate;
+    }
+    const charNames: Record<string, string> = {
+        "*": "All",
+        "?": "Question",
+        "!": "Bang",
+        "+": "Plus",
+        "-": "Minus",
+        "/": "Slash",
+        "\\": "Backslash",
+        "&": "And",
+        "|": "Or",
+        "@": "At",
+        "#": "Hash",
+        "$": "Dollar",
+        "%": "Percent",
+        "^": "Caret",
+        "~": "Tilde",
+        "=": "Equals",
+        "<": "Lt",
+        ">": "Gt",
+    };
+    if (originalValue.length === 1 && charNames[originalValue]) {
+        return charNames[originalValue];
+    }
+    const cleaned = originalValue
+        .split("")
+        .map((c) => charNames[c] ?? (/[A-Za-z0-9]/.test(c) ? c : ""))
+        .join("");
+    if (/^[A-Za-z0-9_]+$/.test(cleaned) && cleaned.length > 0) {
+        return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    }
+    return "Value";
 }
 
 function collapsePlaceholderGoStructs(code: string, knownDefinitionNames?: Set<string>): string {
@@ -942,7 +1129,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     out.push(`// AUTO-GENERATED FILE - DO NOT EDIT`);
     out.push(`// Generated from: session-events.schema.json`);
     out.push(``);
-    out.push(`package copilot`);
+    out.push(`package rpc`);
     out.push(``);
 
     // Imports — time is always needed for SessionEvent.Timestamp
@@ -1130,10 +1317,172 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
     const code = generateGoSessionEventsCode(processed);
 
-    const outPath = await writeGeneratedFile("go/generated_session_events.go", code);
+    const outPath = await writeGeneratedFile("go/rpc/generated_session_events.go", code);
     console.log(`  ✓ ${outPath}`);
 
     await formatGoFile(outPath);
+
+    // Emit a bridge file in package copilot that re-exports every
+    // SessionEvent-related identifier as an alias to the package rpc
+    // version, so existing consumers (`copilot.SessionEvent`,
+    // `copilot.SessionEventTypeX`, …) keep working.
+    const bridgeCode = generateGoSessionEventsBridge(code);
+    const bridgePath = await writeGeneratedFile("go/generated_session_events.go", bridgeCode);
+    console.log(`  ✓ ${bridgePath}`);
+
+    await formatGoFile(bridgePath);
+}
+
+/**
+ * Parse the package-rpc generated session-events Go source and emit a
+ * `package copilot` bridge that re-exports every top-level identifier
+ * as an alias to the underlying rpc value. Functions (which can't be
+ * aliased in Go) get a thin wrapper instead.
+ */
+function generateGoSessionEventsBridge(rpcCode: string): string {
+    const typeNames = new Set<string>();
+    const constNames = new Set<string>();
+    const varNames = new Set<string>();
+    const funcs: { name: string; signature: string }[] = [];
+
+    // `^type Name …`
+    for (const m of rpcCode.matchAll(/^type\s+(\w+)\b/gm)) {
+        typeNames.add(m[1]);
+    }
+    // Top-level `const Name …` (single-decl form). Multi-decl `const ( … )`
+    // groups are handled below by walking line-by-line within balanced parens.
+    for (const m of rpcCode.matchAll(/^const\s+(\w+)\s*[:=]/gm)) {
+        constNames.add(m[1]);
+    }
+    for (const m of rpcCode.matchAll(/^var\s+(\w+)\s*[:=]/gm)) {
+        varNames.add(m[1]);
+    }
+    // Walk const/var/type blocks: `const (` / `var (` / `type (` … `)` and pull each name.
+    const blockRe = /^(const|var|type)\s*\(([\s\S]*?)\n\)/gm;
+    for (const m of rpcCode.matchAll(blockRe)) {
+        const kind = m[1];
+        const body = m[2];
+        for (const line of body.split(/\r?\n/)) {
+            // Skip blank/comment lines.
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("//")) continue;
+            const idMatch = trimmed.match(/^(\w+)\s+/);
+            if (!idMatch) continue;
+            const id = idMatch[1];
+            if (kind === "const") constNames.add(id);
+            else if (kind === "var") varNames.add(id);
+            else typeNames.add(id);
+        }
+    }
+    // Top-level functions (not methods): `^func Name(` — methods have a
+    // receiver `^func (recv Type) Name(`.
+    for (const m of rpcCode.matchAll(/^func\s+(\w+)\s*\(([^)]*)\)\s*(\([^)]*\)|[^{]*)\s*\{/gm)) {
+        const name = m[1];
+        // Skip names quicktype generates as anonymous helpers (none expected).
+        const signatureMatch = rpcCode.match(
+            new RegExp(`^func\\s+${name}\\s*\\([^)]*\\)\\s*(\\([^)]*\\)|[^{]*)\\s*\\{`, "m")
+        );
+        if (signatureMatch) {
+            const fullLine = rpcCode.split(/\r?\n/).find((l) => l.startsWith(`func ${name}(`));
+            if (fullLine) {
+                const sig = fullLine.replace(/\{\s*$/, "").trim();
+                funcs.push({ name, signature: sig });
+            }
+        }
+    }
+
+    // Sort everything for stable output.
+    const sortedTypes = [...typeNames].sort();
+    const sortedConsts = [...constNames].sort();
+    const sortedVars = [...varNames].sort();
+    funcs.sort((a, b) => a.name.localeCompare(b.name));
+
+    const out: string[] = [];
+    out.push(`// AUTO-GENERATED FILE - DO NOT EDIT`);
+    out.push(`// Generated from: session-events.schema.json`);
+    out.push(`//`);
+    out.push(`// This file aliases every SessionEvent-related identifier from`);
+    out.push(`// "github.com/github/copilot-sdk/go/rpc" so existing consumers of`);
+    out.push(`// "github.com/github/copilot-sdk/go" (e.g., copilot.SessionEvent,`);
+    out.push(`// copilot.SessionEventTypeAssistantMessage) continue to work after`);
+    out.push(`// the canonical types moved to package rpc.`);
+    out.push(``);
+    out.push(`package copilot`);
+    out.push(``);
+    out.push(`import (`);
+    out.push(`\t"github.com/github/copilot-sdk/go/rpc"`);
+    out.push(`)`);
+    out.push(``);
+
+    if (sortedTypes.length > 0) {
+        out.push(`// Type aliases.`);
+        for (const name of sortedTypes) {
+            out.push(`type ${name} = rpc.${name}`);
+        }
+        out.push(``);
+    }
+
+    if (sortedConsts.length > 0) {
+        out.push(`// Constant re-exports.`);
+        out.push(`const (`);
+        for (const name of sortedConsts) {
+            out.push(`\t${name} = rpc.${name}`);
+        }
+        out.push(`)`);
+        out.push(``);
+    }
+
+    if (sortedVars.length > 0) {
+        out.push(`// Variable re-exports.`);
+        out.push(`var (`);
+        for (const name of sortedVars) {
+            out.push(`\t${name} = rpc.${name}`);
+        }
+        out.push(`)`);
+        out.push(``);
+    }
+
+    if (funcs.length > 0) {
+        out.push(`// Function wrappers (functions cannot be aliased in Go).`);
+        for (const f of funcs) {
+            out.push(...emitGoFunctionWrapper(f.signature, f.name));
+        }
+    }
+
+    return out.join("\n");
+}
+
+/**
+ * Given a top-level function signature from the rpc-side source, emit a
+ * package-copilot wrapper that calls through to `rpc.<name>`.
+ */
+function emitGoFunctionWrapper(signature: string, name: string): string[] {
+    // signature looks like: `func UnmarshalSessionEvent(data []byte) (SessionEvent, error)`
+    // Extract argument names so we can pass them through.
+    const sigMatch = signature.match(/^func\s+\w+\s*\(([^)]*)\)\s*(.*)$/);
+    if (!sigMatch) {
+        return [`// FIXME: unable to parse signature for ${name}: ${signature}`];
+    }
+    const paramsRaw = sigMatch[1].trim();
+    const returnsRaw = sigMatch[2].trim();
+    // Rewrite return types to the rpc.X form for non-builtin identifiers
+    // present in `typeNames`. We don't have access to typeNames here, so
+    // instead we use a heuristic: any bare PascalCase identifier in returns
+    // gets prefixed with `rpc.`. (Builtin types like `error`, `string`, `int`
+    // are lowercase and untouched.)
+    const rewrittenReturns = returnsRaw.replace(/\b([A-Z]\w*)\b/g, "rpc.$1");
+    const argNames = paramsRaw
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => p.split(/\s+/)[0]);
+    const callArgs = argNames.join(", ");
+    return [
+        `func ${name}(${paramsRaw}) ${rewrittenReturns} {`,
+        `\treturn rpc.${name}(${callArgs})`,
+        `}`,
+        ``,
+    ];
 }
 
 // ── RPC Types ───────────────────────────────────────────────────────────────
@@ -1212,6 +1561,14 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
     };
 
+    // Rewrite cross-schema $refs (e.g., session-events.schema.json#/definitions/SessionEvent)
+    // into local placeholder pointers so quicktype emits a removable stub
+    // type. The post-processor strips the stub and substitutes the
+    // placeholder identifier with the real cross-schema type name.
+    const externalRefMapping = rewriteExternalRefsForGo(
+        combinedSchema as JSONSchema7 & { definitions?: Record<string, JSONSchema7> }
+    );
+
     // Generate types via quicktype — use a single combined schema source so quicktype
     // sees each definition exactly once, preventing whimsical prefix disambiguation.
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
@@ -1220,9 +1577,16 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         type: "object",
         definitions: stripBooleanLiterals(allDefinitions) as Record<string, JSONSchema7>,
         properties: Object.fromEntries(
-            Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
+            Object.keys(allDefinitions)
+                // Don't request the placeholder definitions — they only exist
+                // to satisfy quicktype's $ref resolution and are stripped from
+                // the output.
+                .filter((name) => !externalRefMapping.placeholderNames.has(name))
+                .map((name) => [name, { $ref: `#/definitions/${name}` }])
         ),
-        required: Object.keys(allDefinitions),
+        required: Object.keys(allDefinitions).filter(
+            (name) => !externalRefMapping.placeholderNames.has(name)
+        ),
     };
     await schemaInput.addSource({ name: "RpcTypes", schema: JSON.stringify(singleSchema) });
 
@@ -1240,7 +1604,12 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const quicktypeImports = extractQuicktypeImports(qtCode);
     qtCode = quicktypeImports.code;
     qtCode = postProcessEnumConstants(qtCode);
-    const knownDefNames = new Set(Object.keys(allDefinitions).map((n) => n.toLowerCase()));
+    qtCode = postProcessExternalRefsForGo(qtCode, externalRefMapping.placeholderNames);
+    const knownDefNames = new Set(
+        Object.keys(allDefinitions)
+            .filter((n) => !externalRefMapping.placeholderNames.has(n))
+            .map((n) => n.toLowerCase())
+    );
     qtCode = collapsePlaceholderGoStructs(qtCode, knownDefNames);
     // Strip trailing whitespace from quicktype output (gofmt requirement)
     qtCode = qtCode.replace(/[ \t]+$/gm, "");

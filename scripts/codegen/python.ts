@@ -41,6 +41,149 @@ import {
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
 
+// ── Cross-schema $ref handling ──────────────────────────────────────────────
+
+/**
+ * Map an external JSON Schema file (e.g. `"session-events.schema.json"`) to
+ * the relative Python module path that the generated `rpc.py` should import
+ * its types from. Adding a new entry here teaches the Python codegen about a
+ * new published schema.
+ */
+const EXTERNAL_SCHEMA_PY_MODULE: Record<string, string> = {
+    "session-events.schema.json": ".session_events",
+};
+
+/**
+ * Walk a schema and rewrite cross-schema `$ref` pointers (those that target
+ * a different `*.schema.json` document) into local `#/definitions/__External_<Name>`
+ * pointers, adding empty placeholder definitions so quicktype emits a removable
+ * stub class instead of trying to fetch the foreign schema. The placeholder
+ * names and the modules they should be imported from are returned so the
+ * caller can post-process the generated source: delete the stub class,
+ * rename references to the real type name, and prepend an `import` statement.
+ *
+ * Mutates `schema` in place.
+ */
+function rewriteExternalRefsForPython(schema: JSONSchema7 & { definitions?: Record<string, JSONSchema7> }): {
+    /** Map of placeholder type name → real type name. */
+    placeholderNames: Map<string, string>;
+    /** Map of module path → set of real type names to import. */
+    imports: Map<string, Set<string>>;
+} {
+    const placeholderNames = new Map<string, string>();
+    const imports = new Map<string, Set<string>>();
+    const placeholderFor = (typeName: string): string => `__ExternalRef_${typeName}`;
+    const visit = (value: unknown): void => {
+        if (Array.isArray(value)) {
+            for (const item of value) visit(item);
+            return;
+        }
+        if (!value || typeof value !== "object") return;
+        const node = value as Record<string, unknown>;
+        if (typeof node.$ref === "string" && !node.$ref.startsWith("#")) {
+            const [schemaFile, fragment] = node.$ref.split("#");
+            const module = EXTERNAL_SCHEMA_PY_MODULE[schemaFile];
+            if (module && fragment) {
+                const typeName = fragment.split("/").pop();
+                if (typeName) {
+                    const placeholder = placeholderFor(typeName);
+                    placeholderNames.set(placeholder, typeName);
+                    let bucket = imports.get(module);
+                    if (!bucket) {
+                        bucket = new Set();
+                        imports.set(module, bucket);
+                    }
+                    bucket.add(typeName);
+                    node.$ref = `#/definitions/${placeholder}`;
+                }
+            }
+        }
+        for (const child of Object.values(node)) visit(child);
+    };
+    visit(schema);
+
+    if (placeholderNames.size > 0) {
+        if (!schema.definitions) schema.definitions = {};
+        for (const placeholder of placeholderNames.keys()) {
+            if (!schema.definitions[placeholder]) {
+                // Use a structurally unique placeholder schema so quicktype
+                // doesn't deduplicate it with another empty `{type: object}`
+                // definition. The marker property name embeds the placeholder
+                // name to keep the schema structurally unique without
+                // resorting to `const` (which would make quicktype invent a
+                // helper Enum class we'd then have to strip).
+                const markerProperty = `__externalRefMarker_${placeholder}`;
+                schema.definitions[placeholder] = {
+                    type: "object",
+                    additionalProperties: false,
+                    title: placeholder,
+                    properties: {
+                        [markerProperty]: { type: "string" },
+                    },
+                    required: [markerProperty],
+                };
+            }
+        }
+    }
+
+    return { placeholderNames, imports };
+}
+
+/**
+ * Convert a placeholder definition name (e.g. `__ExternalRef_SessionEvent`) to
+ * the PascalCase identifier quicktype generates from it (e.g.
+ * `ExternalRefSessionEvent`). Mirrors quicktype's own naming heuristic:
+ * leading underscores are stripped and remaining `_`-separated segments are
+ * Capitalized.
+ */
+function placeholderToQuicktypeIdentifier(placeholder: string): string {
+    return placeholder
+        .replace(/^_+/, "")
+        .split("_")
+        .map((segment) => (segment ? segment[0].toUpperCase() + segment.slice(1) : ""))
+        .join("");
+}
+
+/**
+ * After quicktype runs, strip the dataclass + helper enum it emitted for each
+ * placeholder schema, and substitute references to the placeholder class with
+ * the real cross-schema type name. The corresponding `import` statement is
+ * added separately at the top of the file.
+ */
+function postProcessExternalRefsForPython(code: string, placeholderToReal: Map<string, string>): string {
+    for (const [placeholder, realName] of placeholderToReal) {
+        const quicktypeName = placeholderToQuicktypeIdentifier(placeholder);
+
+        // Remove the dataclass block: starts with `@dataclass\nclass <Name>:`,
+        // ends just before the next top-level `@dataclass`/`class`/`def` or EOF.
+        code = code.replace(
+            new RegExp(
+                `(?:^|\\n)@dataclass\\r?\\nclass ${quicktypeName}\\b[\\s\\S]*?(?=\\n@dataclass\\b|\\nclass\\s+\\w|\\ndef\\s+\\w|$)`,
+                "g"
+            ),
+            "\n"
+        );
+
+        // Remove helper Enum classes quicktype invents for the placeholder's
+        // marker property. These are named `<QuicktypeName><Suffix>(Enum)`
+        // where `<Suffix>` is derived from the marker prop name.
+        code = code.replace(
+            new RegExp(
+                `(?:^|\\n)class ${quicktypeName}\\w*\\(Enum\\):[\\s\\S]*?(?=\\nclass\\s+\\w|\\n@dataclass\\b|\\ndef\\s+\\w|$)`,
+                "g"
+            ),
+            "\n"
+        );
+
+        // Substitute remaining references to the placeholder identifier with
+        // the real type name. The import will resolve it to the canonical
+        // type from the external module.
+        code = code.replace(new RegExp(`\\b${quicktypeName}\\b`, "g"), realName);
+    }
+
+    return code.replace(/\n{3,}/g, "\n\n");
+}
+
 // ── Utilities ───────────────────────────────────────────────────────────────
 
 /**
@@ -1667,6 +1810,16 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         }
     }
 
+    // Rewrite cross-schema $refs (e.g. `session-events.schema.json#/definitions/SessionEvent`)
+    // into local placeholder $refs that quicktype can satisfy. We strip the
+    // placeholder classes after generation and add the corresponding `import`
+    // statements so the references resolve to the canonical types from the
+    // session-events module instead of being duplicated here.
+    const externalRefMapping = rewriteExternalRefsForPython(combinedSchema as JSONSchema7 & {
+        definitions?: Record<string, JSONSchema7>;
+    });
+    const placeholderDefinitionNames = new Set(externalRefMapping.placeholderNames.keys());
+
     const allDefinitions = combinedSchema.definitions! as Record<string, JSONSchema7>;
     const allDefinitionCollections: DefinitionCollections = {
         definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
@@ -1676,14 +1829,17 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Generate types via quicktype — use a single combined schema source to avoid
     // quicktype inventing Purple/Fluffy disambiguation prefixes for shared types
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
+    const rpcRootDefinitionNames = Object.keys(allDefinitions).filter(
+        (name) => !placeholderDefinitionNames.has(name)
+    );
     const singleSchema: Record<string, unknown> = {
         $schema: "http://json-schema.org/draft-07/schema#",
         type: "object",
         definitions: stripBooleanLiterals(allDefinitions),
         properties: Object.fromEntries(
-            Object.keys(allDefinitions).map((name) => [name, { $ref: `#/definitions/${name}` }])
+            rpcRootDefinitionNames.map((name) => [name, { $ref: `#/definitions/${name}` }])
         ),
-        required: Object.keys(allDefinitions),
+        required: rpcRootDefinitionNames,
     };
     await schemaInput.addSource({ name: "RPC", schema: JSON.stringify(singleSchema) });
 
@@ -1697,6 +1853,15 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     });
 
     let typesCode = qtResult.lines.join("\n");
+
+    // Strip placeholder classes generated for cross-schema $refs and substitute
+    // their references with the real (imported) type name. This must run before
+    // any other text rewriting passes because the placeholder names contain
+    // identifiers that other passes might transform.
+    if (externalRefMapping.placeholderNames.size > 0) {
+        typesCode = postProcessExternalRefsForPython(typesCode, externalRefMapping.placeholderNames);
+    }
+
     // Fix dataclass field ordering
     typesCode = typesCode.replace(/: Any$/gm, ": Any = None");
     // Fix bare except: to use Exception (required by ruff/pylint)
@@ -1802,6 +1967,16 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const resolveType = (name: string): string => actualTypeNames.get(name.toLowerCase()) ?? name;
 
     const lines: string[] = [];
+    const externalImportLines: string[] = [];
+    if (externalRefMapping.imports.size > 0) {
+        for (const [module, names] of [...externalRefMapping.imports.entries()].sort(([a], [b]) =>
+            a.localeCompare(b)
+        )) {
+            const sortedNames = [...names].sort();
+            externalImportLines.push(`from ${module} import ${sortedNames.join(", ")}`);
+        }
+    }
+    const externalImportBlock = externalImportLines.length > 0 ? externalImportLines.join("\n") + "\n\n" : "";
     lines.push(`"""
 AUTO-GENERATED FILE - DO NOT EDIT
 Generated from: api.schema.json
@@ -1821,7 +1996,7 @@ from uuid import UUID
 
 import dateutil.parser
 
-T = TypeVar("T")
+${externalImportBlock}T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
 
 `);
