@@ -23,7 +23,7 @@
 - [✅] **Provision secrets** in `github/copilot-sdk` (see §2A) See https://github.com/github/copilot-sdk-partners/issues/90
 - [✅] **Verify CODEOWNERS team** access. See https://github.com/github/copilot-sdk-partners/issues/89
 - [✅] **Check Maven Central Trusted Publisher** — can `github/copilot-sdk` publish to `com.github:copilot-sdk-java`? See
-- [⌛] **Check GitHub Pages** — is it enabled? Can Java docs coexist? See https://github.com/github/copilot-sdk-partners/issues/85
+- [✅] **Check GitHub Pages** — is it enabled? Can Java docs coexist? See https://github.com/github/copilot-sdk-partners/issues/85
 - [ ] **Confirm branch protection** — will new required status checks be accepted?
 - [ ] **Create tracking issue** in `github/copilot-sdk` for this migration
 - [ ] **Freeze Java SDK changes** — declare a short freeze window in `copilot-sdk-java` to avoid merge conflicts during migration
@@ -109,9 +109,9 @@
 2. Create `java-publish-snapshot.yml` (adapted from `publish-snapshot.yml`):
    - Similar path/directory updates
 
-3. Create `java-deploy-site.yml` (adapted from `deploy-site.yml`):
-   - Adjust GitHub Pages setup for coexistence
-   - May need a subdirectory deployment strategy
+3. ~~Create `java-deploy-site.yml` (adapted from `deploy-site.yml`):~~
+   ~~- Adjust GitHub Pages setup for coexistence~~
+   ~~- May need a subdirectory deployment strategy~~
 
 4. Create `java-smoke-test.yml` (adapted from `run-smoke-test.yml`).
 
@@ -216,7 +216,7 @@ The Java SDK publish workflow requires secrets that **do not currently exist** i
 - [✅] **Repository secrets**: File a ticket to add the 6 Java-specific secrets to `github/copilot-sdk`. See https://github.com/github/copilot-sdk-partners/issues/90
 - [✅] **CODEOWNERS team**: ~~Ensure `@github/copilot-sdk-java` team has access to `github/copilot-sdk` and is added to CODEOWNERS for `java/**`.~~ See https://github.com/github/copilot-sdk-partners/issues/89 .
 - [⌛] **Maven Central Trusted Publisher**: Currently configured for `github/copilot-sdk-java`. Must be updated to also allow publishing from `github/copilot-sdk` (or create a new namespace mapping). **This is the highest-risk permission issue** — Maven Central's Trusted Publisher setup ties the repository name to the publish flow. See https://github.com/github/copilot-sdk-partners/issues/91
-- [⌛] **GitHub Pages**: If `deploy-site.yml` moves, check if GitHub Pages is enabled on the monorepo and whether Java docs can coexist with any existing docs deployment. See https://github.com/github/copilot-sdk-partners/issues/85
+- [✅] **GitHub Pages**: ~~If `deploy-site.yml` moves, check if GitHub Pages is enabled on the monorepo and whether Java docs can coexist with any existing docs deployment.~~ See https://github.com/github/copilot-sdk-partners/issues/85
 - [ ] **Branch protection**: Ensure `main` branch protection rules in copilot-sdk permit the Java CI workflows (merge queues, required status checks, etc.).
 - [ ] **Copilot coding agent**: Ensure the agent is enabled for `github/copilot-sdk` and the `copilot-setup-steps.yml` is updated to include Java tooling.
 
@@ -422,7 +422,7 @@ What changes is the **mechanism**: instead of polling a remote repository, the w
 | #   | Risk                                    | Impact                                                                                                     | Mitigation                                                                                                                                 |
 | --- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | M1  | **Codegen `package.json` merge**        | Java codegen has its own `@github/copilot` dependency; monorepo codegen gets it from `nodejs/node_modules` | Align Java codegen to use the same dependency source. May need to add `generate:java` script to monorepo's `scripts/codegen/package.json`. |
-| M2  | **GitHub Pages conflict**               | Java deploys versioned docs to Pages. Monorepo may have its own Pages setup.                               | Use subdirectory deployment or a separate Pages branch for Java.                                                                           |
+| M2  | ~~**GitHub Pages conflict**~~               | ~~Java deploys versioned docs to Pages. Monorepo may have its own Pages setup.~~                               | ~~Use subdirectory deployment or a separate Pages branch for Java.~~                                                                           |
 | M3  | **Branch protection / required checks** | New `java-sdk-tests` check may not be in the required list                                                 | Add to branch protection after first successful run.                                                                                       |
 | M4  | **CODEOWNERS team permissions**         | `@github/copilot-sdk-java` team may not have write access to `github/copilot-sdk`                          | Verify team access and add to repo collaborators.   See https://github.com/github/copilot-sdk-partners/issues/89                                                                                       |
 | M5  | **`copilot-setup-steps.yml` bloat**     | Adding JDK + Maven makes agent setup slower for non-Java tasks                                             | Acceptable trade-off; other languages already add their tools. Could consider conditional setup but that's over-engineering.               |
@@ -545,7 +545,7 @@ What changes is the **mechanism**: instead of polling a remote repository, the w
 | **Codegen**                 | Own `java.ts` + own `@github/copilot` dep           | Shared codegen scripts + shared dep               | Needs reconciliation                                                                                                           |
 | **CI runner**               | JDK 17 + JDK 25 (smoke test)                        | Node 22, Python 3.12, Go 1.24, .NET 10, Rust 1.94 | Just another tool in `copilot-setup-steps.yml`                                                                                 |
 | **Publishing**              | Maven Central (GPG + Sonatype)                      | npm, PyPI, NuGet, crates.io, Go tags              | Completely different mechanism                                                                                                 |
-| **Docs hosting**            | GitHub Pages (Maven site)                           | Not clear if monorepo has its own                 | Potential conflict                                                                                                             |
+| **Docs hosting**            | ~~GitHub Pages (Maven site)~~                           | ~~Not clear if monorepo has its own~~                 | ~~Potential conflict~~                                                                                                             |
 | **Reference impl tracking** | `.lastmerge` + scheduled sync + agentic merge skill | N/A (they ARE the reference impl)                 | `.lastmerge` stores monorepo SHA; sync becomes intra-repo but is still needed because Java maintainers ≠ .NET/Node maintainers |
 
 ---
