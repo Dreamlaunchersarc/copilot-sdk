@@ -45,29 +45,7 @@
 
 2. Update `pom.xml` paths if needed (should be self-contained under `java/`).
 
-3. Verify `mvn verify` works from `java/` directory locally.
-
-4. Add `justfile` targets for Java:
-
-   ```just
-   format-java:
-       @echo "=== Formatting Java code ==="
-       @cd java && mvn spotless:apply
-
-   lint-java:
-       @echo "=== Linting Java code ==="
-       @cd java && mvn spotless:check
-
-   test-java:
-       @echo "=== Testing Java code ==="
-       @cd java && mvn verify
-
-   install-java: install-nodejs install-test-harness
-       @echo "=== Installing Java dependencies ==="
-       @cd java && mvn dependency:go-offline
-   ```
-
-5. Update top-level `format`, `lint`, `test`, `install` recipes to include Java.
+3. Verify `mvn clean verify` works from `java/` directory locally. Make necessary changes so the test infrastructure is copied locally, rather than checked out.
 
 ### Phase 2: CI Workflows
 
@@ -378,7 +356,7 @@ What changes is the **mechanism**: instead of polling a remote repository, the w
 | **Composite Action:** `test-report`                              | `.github/actions/test-report/`               | Test report generation                       | Yes                                               |
 | **Scripts:** `release/`, `ci/`, `build/`, `reference-impl-sync/` | `.github/scripts/`                           | Release, CI, sync automation                 | Yes — **path rewrites**                           |
 | **Dependabot:** `dependabot.yml`                                 | `.github/`                                   | Maven + GitHub Actions updates               | Merge into monorepo's `dependabot.yaml`           |
-| **CODEOWNERS**                                                   | `.github/`                                   | ~~`@github/copilot-sdk-java`                   | Merge into monorepo's CODEOWNERS~~                  |
+| **CODEOWNERS**                                                   | `.github/`                                   | ~~`@github/copilot-sdk-java`                 | Merge into monorepo's CODEOWNERS~~                |
 | **Issue Templates:** bug, documentation, feature, maintenance    | `.github/ISSUE_TEMPLATE/`                    | Issue forms                                  | Assess whether monorepo issue triage covers this  |
 | **PR Template**                                                  | `.github/pull_request_template.md`           | PR form                                      | Merge or keep per-language                        |
 | **Release Config**                                               | `.github/release.yml`                        | Auto-generated release notes config          | Merge                                             |
@@ -422,9 +400,9 @@ What changes is the **mechanism**: instead of polling a remote repository, the w
 | #   | Risk                                    | Impact                                                                                                     | Mitigation                                                                                                                                 |
 | --- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | M1  | **Codegen `package.json` merge**        | Java codegen has its own `@github/copilot` dependency; monorepo codegen gets it from `nodejs/node_modules` | Align Java codegen to use the same dependency source. May need to add `generate:java` script to monorepo's `scripts/codegen/package.json`. |
-| M2  | ~~**GitHub Pages conflict**~~               | ~~Java deploys versioned docs to Pages. Monorepo may have its own Pages setup.~~                               | ~~Use subdirectory deployment or a separate Pages branch for Java.~~                                                                           |
+| M2  | ~~**GitHub Pages conflict**~~           | ~~Java deploys versioned docs to Pages. Monorepo may have its own Pages setup.~~                           | ~~Use subdirectory deployment or a separate Pages branch for Java.~~                                                                       |
 | M3  | **Branch protection / required checks** | New `java-sdk-tests` check may not be in the required list                                                 | Add to branch protection after first successful run.                                                                                       |
-| M4  | **CODEOWNERS team permissions**         | `@github/copilot-sdk-java` team may not have write access to `github/copilot-sdk`                          | Verify team access and add to repo collaborators.   See https://github.com/github/copilot-sdk-partners/issues/89                                                                                       |
+| M4  | **CODEOWNERS team permissions**         | `@github/copilot-sdk-java` team may not have write access to `github/copilot-sdk`                          | Verify team access and add to repo collaborators. See https://github.com/github/copilot-sdk-partners/issues/89                             |
 | M5  | **`copilot-setup-steps.yml` bloat**     | Adding JDK + Maven makes agent setup slower for non-Java tasks                                             | Acceptable trade-off; other languages already add their tools. Could consider conditional setup but that's over-engineering.               |
 | M6  | **gh-aw version mismatch**              | Java repo uses gh-aw `v0.68.3` setup action pinned at `v0.71.5`; monorepo uses `v0.64.2` reference in docs | Align gh-aw versions. Use the newer version. Recompile all `.lock.yml` files.                                                              |
 
@@ -545,7 +523,7 @@ What changes is the **mechanism**: instead of polling a remote repository, the w
 | **Codegen**                 | Own `java.ts` + own `@github/copilot` dep           | Shared codegen scripts + shared dep               | Needs reconciliation                                                                                                           |
 | **CI runner**               | JDK 17 + JDK 25 (smoke test)                        | Node 22, Python 3.12, Go 1.24, .NET 10, Rust 1.94 | Just another tool in `copilot-setup-steps.yml`                                                                                 |
 | **Publishing**              | Maven Central (GPG + Sonatype)                      | npm, PyPI, NuGet, crates.io, Go tags              | Completely different mechanism                                                                                                 |
-| **Docs hosting**            | ~~GitHub Pages (Maven site)~~                           | ~~Not clear if monorepo has its own~~                 | ~~Potential conflict~~                                                                                                             |
+| **Docs hosting**            | ~~GitHub Pages (Maven site)~~                       | ~~Not clear if monorepo has its own~~             | ~~Potential conflict~~                                                                                                         |
 | **Reference impl tracking** | `.lastmerge` + scheduled sync + agentic merge skill | N/A (they ARE the reference impl)                 | `.lastmerge` stores monorepo SHA; sync becomes intra-repo but is still needed because Java maintainers ≠ .NET/Node maintainers |
 
 ---
