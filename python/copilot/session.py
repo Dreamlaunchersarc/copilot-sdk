@@ -947,6 +947,11 @@ class SessionConfig(TypedDict, total=False):
     include_sub_agent_streaming_events: bool
     # MCP server configurations for the session
     mcp_servers: dict[str, MCPServerConfig]
+    # Controls how MCP OAuth tokens are stored for this session.
+    # "persistent" stores tokens in the OS keychain (shared across sessions).
+    # "in-memory" stores tokens in memory, discarded when the session ends.
+    # Defaults to "in-memory" for safe multitenant behavior.
+    mcp_oauth_token_storage: Literal["persistent", "in-memory"]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
     # Configuration for the default agent.
@@ -1034,6 +1039,11 @@ class ResumeSessionConfig(TypedDict, total=False):
     include_sub_agent_streaming_events: bool
     # MCP server configurations for the session
     mcp_servers: dict[str, MCPServerConfig]
+    # Controls how MCP OAuth tokens are stored for this session.
+    # "persistent" stores tokens in the OS keychain (shared across sessions).
+    # "in-memory" stores tokens in memory, discarded when the session ends.
+    # Defaults to "in-memory" for safe multitenant behavior.
+    mcp_oauth_token_storage: Literal["persistent", "in-memory"]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
     # Configuration for the default agent.

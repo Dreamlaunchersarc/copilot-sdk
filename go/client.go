@@ -636,6 +636,11 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ModelCapabilities = config.ModelCapabilities
 	req.WorkingDirectory = config.WorkingDirectory
 	req.MCPServers = config.MCPServers
+	if config.McpOAuthTokenStorage != "" {
+		req.McpOAuthTokenStorage = config.McpOAuthTokenStorage
+	} else {
+		req.McpOAuthTokenStorage = "in-memory"
+	}
 	req.EnvValueMode = "direct"
 	req.CustomAgents = config.CustomAgents
 	req.DefaultAgent = config.DefaultAgent
@@ -841,6 +846,11 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.ContinuePendingWork = Bool(true)
 	}
 	req.MCPServers = config.MCPServers
+	if config.McpOAuthTokenStorage != "" {
+		req.McpOAuthTokenStorage = config.McpOAuthTokenStorage
+	} else {
+		req.McpOAuthTokenStorage = "in-memory"
+	}
 	req.EnvValueMode = "direct"
 	req.CustomAgents = config.CustomAgents
 	req.DefaultAgent = config.DefaultAgent

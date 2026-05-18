@@ -1805,6 +1805,21 @@ public enum McpHttpServerConfigOauthGrantType
 }
 
 /// <summary>
+/// Controls how MCP OAuth tokens are stored for a session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<McpOAuthTokenStorageMode>))]
+public enum McpOAuthTokenStorageMode
+{
+    /// <summary>Tokens are stored in the OS keychain, shared across sessions.</summary>
+    [JsonStringEnumMemberName("persistent")]
+    Persistent,
+
+    /// <summary>Tokens are stored in memory and discarded when the session ends.</summary>
+    [JsonStringEnumMemberName("in-memory")]
+    InMemory
+}
+
+/// <summary>
 /// Abstract base class for MCP server configurations.
 /// </summary>
 [JsonPolymorphic(
@@ -2085,6 +2100,7 @@ public class SessionConfig
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
                 : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
+        McpOAuthTokenStorage = other.McpOAuthTokenStorage;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
         OnAutoModeSwitch = other.OnAutoModeSwitch;
@@ -2262,6 +2278,12 @@ public class SessionConfig
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
+    /// Controls how MCP OAuth tokens are stored for this session.
+    /// Default: <see cref="McpOAuthTokenStorageMode.InMemory"/> for safe multitenant behavior.
+    /// </summary>
+    public McpOAuthTokenStorageMode? McpOAuthTokenStorage { get; set; }
+
+    /// <summary>
     /// Custom agent configurations for the session.
     /// </summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
@@ -2394,6 +2416,7 @@ public class ResumeSessionConfig
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
                 : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
+        McpOAuthTokenStorage = other.McpOAuthTokenStorage;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
         OnAutoModeSwitch = other.OnAutoModeSwitch;
@@ -2586,6 +2609,12 @@ public class ResumeSessionConfig
     /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
+
+    /// <summary>
+    /// Controls how MCP OAuth tokens are stored for this session.
+    /// Default: <see cref="McpOAuthTokenStorageMode.InMemory"/> for safe multitenant behavior.
+    /// </summary>
+    public McpOAuthTokenStorageMode? McpOAuthTokenStorage { get; set; }
 
     /// <summary>
     /// Custom agent configurations for the session.

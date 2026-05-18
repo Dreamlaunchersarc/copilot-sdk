@@ -616,6 +616,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
+                config.McpOAuthTokenStorage ?? McpOAuthTokenStorageMode.InMemory,
                 "direct",
                 config.CustomAgents,
                 config.DefaultAgent,
@@ -780,6 +781,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
+                config.McpOAuthTokenStorage ?? McpOAuthTokenStorageMode.InMemory,
                 "direct",
                 config.CustomAgents,
                 config.DefaultAgent,
@@ -1986,6 +1988,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
+        McpOAuthTokenStorageMode? McpOAuthTokenStorage,
         string? EnvValueMode,
         IList<CustomAgentConfig>? CustomAgents,
         DefaultAgentConfig? DefaultAgent,
@@ -2050,6 +2053,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
+        McpOAuthTokenStorageMode? McpOAuthTokenStorage,
         string? EnvValueMode,
         IList<CustomAgentConfig>? CustomAgents,
         DefaultAgentConfig? DefaultAgent,
@@ -2139,6 +2143,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ListSessionsResponse))]
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
+    [JsonSerializable(typeof(McpOAuthTokenStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
     [JsonSerializable(typeof(PermissionRequestResult))]
     [JsonSerializable(typeof(PermissionRequestResultKind))]
