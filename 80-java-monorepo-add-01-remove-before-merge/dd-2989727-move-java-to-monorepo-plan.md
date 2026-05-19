@@ -18,7 +18,7 @@
 
 ## 1. Migration Plan — Phases
 
-### Phase 0: Pre-Flight (Before Writing Any Code)
+### Phase 0: ✅ Pre-Flight (Before Writing Any Code)
 
 - [✅] **Provision secrets** in `github/copilot-sdk` (see §2A) See https://github.com/github/copilot-sdk-partners/issues/90
 - [✅] **Verify CODEOWNERS team** access. See https://github.com/github/copilot-sdk-partners/issues/89
@@ -33,7 +33,7 @@
   4. Once Phase 1 merges and the monorepo is the source of truth, disable the sync workflow in `copilot-sdk-java` entirely
   - **Rationale:** A hard freeze is unnecessary because (a) there is a single human committer, (b) the only automated commit source is the reference-impl-sync workflow whose schedule is controllable, and (c) any drift is trivially detectable via `git log`. The one constraint: do not trigger a sync while a Phase 1 PR is under active review.
 
-### Phase 1: Copy Source Code (No Workflows Yet)
+### Phase 1: ✅ Copy Source Code (No Workflows Yet)
 
 **Goal**: Get all Java source code building and testing in the monorepo without any CI/CD.
 
@@ -65,7 +65,7 @@
    - Add `java/src/generated/**` to path triggers
    - Add a job that runs Java codegen and diffs
 
-3. Create `java-codegen-fix.md` (adapted from `codegen-agentic-fix.md`):
+3. Create `java-codegen-agentic-fix.md` (adapted from `codegen-agentic-fix.md`):
    - Update paths, remove cross-repo references
    - Compile with `gh aw compile`
 
@@ -75,9 +75,6 @@
 
 5. Update `dependabot.yaml`:
    - Add Maven ecosystem entry for `/java`
-
-6. Update `CODEOWNERS`:
-   - ~~Add `java/ @github/copilot-sdk-java`~~
 
 ### Phase 3: Publish Workflows
 
