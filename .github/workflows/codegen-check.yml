@@ -14,6 +14,8 @@ on:
       - 'go/generated_*.go'
       - 'go/rpc/**'
       - 'rust/src/generated/**'
+      - 'java/scripts/codegen/**'
+      - 'java/src/generated/**'
       - '.github/workflows/codegen-check.yml'
   workflow_dispatch:
 
@@ -79,3 +81,32 @@ jobs:
             exit 1
           fi
           echo "✅ Generated files are up-to-date"
+
+  java-codegen:
+    name: "Verify Java generated files are up-to-date"
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Java codegen dependencies
+        working-directory: ./java/scripts/codegen
+        run: npm ci
+
+      - name: Run Java codegen
+        working-directory: ./java/scripts/codegen
+        run: npx tsx java.ts
+
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git diff --name-only java/src/generated/)" ]; then
+            echo "::error::Java generated files are out of date. Run 'cd java/scripts/codegen && npx tsx java.ts' and commit the changes."
+            git diff --stat java/src/generated/
+            git diff java/src/generated/
+            exit 1
+          fi
+          echo "✅ Java generated files are up-to-date"
