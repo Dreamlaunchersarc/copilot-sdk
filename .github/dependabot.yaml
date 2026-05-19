@@ -36,3 +36,13 @@ updates:
     directory: '/dotnet'
     multi-ecosystem-group: 'all'
     patterns: ['*']
+  # Java dependencies
+  - package-ecosystem: 'maven'
+    directory: '/java'
+    multi-ecosystem-group: 'all'
+    patterns: ['*']
+  # Java codegen dependencies
+  - package-ecosystem: 'npm'
+    directory: '/java/scripts/codegen'
+    multi-ecosystem-group: 'all'
+    patterns: ['*']
