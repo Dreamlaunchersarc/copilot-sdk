@@ -1424,9 +1424,7 @@ class CopilotClient:
                 connected runtime supports and enables on-demand custom instruction
                 discovery. Enable only for trusted repositories or workspaces;
                 discovered instruction files may be stored or replayed with session
-                history. For resumed sessions, omitting this option leaves the
-                existing session setting unchanged; pass False to disable future
-                on-demand discovery.
+                history.
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.

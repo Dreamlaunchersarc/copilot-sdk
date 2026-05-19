@@ -610,8 +610,6 @@ type SessionConfig struct {
 	// repositories or workspaces; discovered instruction files may be stored or
 	// replayed with session history. When nil (the default), the option is
 	// omitted from the wire payload and the runtime treats the setting as off.
-	// For resumed sessions, omitting this option leaves the existing session
-	// setting unchanged; pass Bool(false) to disable future on-demand discovery.
 	EnableOnDemandInstructionDiscovery *bool
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
