@@ -5,28 +5,28 @@ on:
     branches:
       - main
     paths:
-      - 'java/**'
-      - 'test/**'
-      - '.github/workflows/java-sdk-tests.yml'
-      - '.github/actions/setup-copilot/**'
-      - '.github/actions/java-test-report/**'
+      - "java/**"
+      - "test/**"
+      - ".github/workflows/java-sdk-tests.yml"
+      - ".github/actions/setup-copilot/**"
+      - ".github/actions/java-test-report/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - 'java/**'
-      - 'test/**'
-      - '.github/workflows/java-sdk-tests.yml'
-      - '.github/actions/setup-copilot/**'
-      - '.github/actions/java-test-report/**'
-      - '!**/*.md'
-      - '!**/LICENSE*'
-      - '!**/.gitignore'
-      - '!**/.editorconfig'
-      - '!**/*.png'
-      - '!**/*.jpg'
-      - '!**/*.jpeg'
-      - '!**/*.gif'
-      - '!**/*.svg'
+      - "java/**"
+      - "test/**"
+      - ".github/workflows/java-sdk-tests.yml"
+      - ".github/actions/setup-copilot/**"
+      - ".github/actions/java-test-report/**"
+      - "!**/*.md"
+      - "!**/LICENSE*"
+      - "!**/.gitignore"
+      - "!**/.editorconfig"
+      - "!**/*.png"
+      - "!**/*.jpg"
+      - "!**/*.jpeg"
+      - "!**/*.gif"
+      - "!**/*.svg"
   workflow_dispatch:
   merge_group:
 
@@ -77,14 +77,14 @@ jobs:
           echo "✅ spotless:check passed"
 
       - name: Verify Javadoc generation
-        run: mvn javadoc:javadoc -q
+        run: mvn compile javadoc:javadoc -q
 
       - name: Run Java SDK tests
         env:
           CI: "true"
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
-        run: mvn clean verify
+        run: mvn verify
 
       - name: Upload test results for site generation
         if: success() && github.ref == 'refs/heads/main'
