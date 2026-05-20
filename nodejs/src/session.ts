@@ -97,6 +97,9 @@ export class CopilotSession {
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
     private _capabilities: SessionCapabilities = {};
+    private disconnected = false;
+    private disconnectPromise?: Promise<void>;
+    private readonly onDisconnected?: (session: CopilotSession) => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -114,17 +117,22 @@ export class CopilotSession {
         public readonly sessionId: string,
         private connection: MessageConnection,
         private _workspacePath?: string,
-        traceContextProvider?: TraceContextProvider
+        traceContextProvider?: TraceContextProvider,
+        onDisconnected?: (session: CopilotSession) => void
     ) {
         this.traceContextProvider = traceContextProvider;
+        this.onDisconnected = onDisconnected;
     }
 
     /**
      * Typed session-scoped RPC methods.
      */
     get rpc(): ReturnType<typeof createSessionRpc> {
+        this.assertActive();
         if (!this._rpc) {
-            this._rpc = createSessionRpc(this.connection, this.sessionId);
+            this._rpc = createSessionRpc(this.connection, this.sessionId, () =>
+                this.assertActive()
+            );
         }
         return this._rpc;
     }
@@ -159,6 +167,7 @@ export class CopilotSession {
      * ```
      */
     get ui(): SessionUiApi {
+        this.assertActive();
         return {
             elicitation: (params: ElicitationParams) => this._elicitation(params),
             confirm: (message: string) => this._confirm(message),
@@ -186,6 +195,7 @@ export class CopilotSession {
      * ```
      */
     async send(options: MessageOptions): Promise<string> {
+        this.assertActive();
         const response = await this.connection.sendRequest("session.send", {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
@@ -225,6 +235,7 @@ export class CopilotSession {
         options: MessageOptions,
         timeout?: number
     ): Promise<AssistantMessageEvent | undefined> {
+        this.assertActive();
         const effectiveTimeout = timeout ?? 60_000;
 
         let resolveIdle: () => void;
@@ -328,6 +339,7 @@ export class CopilotSession {
         eventTypeOrHandler: K | SessionEventHandler,
         handler?: TypedSessionEventHandler<K>
     ): () => void {
+        this.assertActive();
         // Overload 1: on(eventType, handler) - typed event subscription
         if (typeof eventTypeOrHandler === "string" && handler) {
             const eventType = eventTypeOrHandler;
@@ -720,7 +732,14 @@ export class CopilotSession {
         this._capabilities = capabilities ?? {};
     }
 
+    private assertActive(): void {
+        if (this.disconnected) {
+            throw new Error("Session has been disconnected.");
+        }
+    }
+
     private assertElicitation(): void {
+        this.assertActive();
         if (!this._capabilities.ui?.elicitation) {
             throw new Error(
                 "Elicitation is not supported by the host. " +
@@ -992,6 +1011,7 @@ export class CopilotSession {
      * ```
      */
     async getMessages(): Promise<SessionEvent[]> {
+        this.assertActive();
         const response = await this.connection.sendRequest("session.getMessages", {
             sessionId: this.sessionId,
         });
@@ -1021,17 +1041,48 @@ export class CopilotSession {
      * ```
      */
     async disconnect(): Promise<void> {
-        await this.connection.sendRequest("session.destroy", {
-            sessionId: this.sessionId,
-        });
+        if (this.disconnected) {
+            return;
+        }
+        if (!this.disconnectPromise) {
+            this.disconnectPromise = this.disconnectCore();
+        }
+        await this.disconnectPromise;
+    }
+
+    private async disconnectCore(): Promise<void> {
+        try {
+            await this.connection.sendRequest("session.destroy", {
+                sessionId: this.sessionId,
+            });
+        } finally {
+            this.markDisconnected();
+        }
+    }
+
+    /** @internal Marks the session unusable after client-side forced cleanup. */
+    _markDisconnected(): void {
+        this.markDisconnected();
+    }
+
+    private markDisconnected(): void {
+        if (this.disconnected) {
+            return;
+        }
+        this.disconnected = true;
+        this._rpc = null;
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
+        this.commandHandlers.clear();
         this.permissionHandler = undefined;
         this.userInputHandler = undefined;
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
+        this.hooks = undefined;
+        this.transformCallbacks = undefined;
+        this.onDisconnected?.(this);
     }
 
     /**
@@ -1073,6 +1124,7 @@ export class CopilotSession {
      * ```
      */
     async abort(): Promise<void> {
+        this.assertActive();
         await this.connection.sendRequest("session.abort", {
             sessionId: this.sessionId,
         });
@@ -1098,6 +1150,7 @@ export class CopilotSession {
             modelCapabilities?: ModelCapabilitiesOverride;
         }
     ): Promise<void> {
+        this.assertActive();
         await this.rpc.model.switchTo({ modelId: model, ...options });
     }
 
@@ -1121,6 +1174,7 @@ export class CopilotSession {
         message: string,
         options?: { level?: "info" | "warning" | "error"; ephemeral?: boolean }
     ): Promise<void> {
+        this.assertActive();
         await this.rpc.log({ message, ...options });
     }
 }

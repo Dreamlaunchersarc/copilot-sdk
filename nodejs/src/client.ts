@@ -450,6 +450,20 @@ export class CopilotClient {
         }
     }
 
+    private registerSession(session: CopilotSession): void {
+        const existing = this.sessions.get(session.sessionId);
+        if (existing && existing !== session) {
+            throw new Error(`Session ${session.sessionId} is already active.`);
+        }
+        this.sessions.set(session.sessionId, session);
+    }
+
+    private unregisterSession(session: CopilotSession): void {
+        if (this.sessions.get(session.sessionId) === session) {
+            this.sessions.delete(session.sessionId);
+        }
+    }
+
     private setupSessionFs(
         session: CopilotSession,
         config: { createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider }
@@ -551,37 +565,25 @@ export class CopilotClient {
     async stop(): Promise<Error[]> {
         const errors: Error[] = [];
 
-        // Disconnect all active sessions with retry logic
-        for (const session of this.sessions.values()) {
+        // Disconnect a stable snapshot so per-session cleanup can mutate the map safely.
+        for (const session of [...this.sessions.values()]) {
             const sessionId = session.sessionId;
-            let lastError: Error | null = null;
-
-            // Try up to 3 times with exponential backoff
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                try {
-                    await session.disconnect();
-                    lastError = null;
-                    break; // Success
-                } catch (error) {
-                    lastError = error instanceof Error ? error : new Error(String(error));
-
-                    if (attempt < 3) {
-                        // Exponential backoff: 100ms, 200ms
-                        const delay = 100 * Math.pow(2, attempt - 1);
-                        await new Promise((resolve) => setTimeout(resolve, delay));
-                    }
-                }
-            }
-
-            if (lastError) {
+            try {
+                await session.disconnect();
+            } catch (error) {
+                const disconnectError = error instanceof Error ? error : new Error(String(error));
                 errors.push(
                     new Error(
-                        `Failed to disconnect session ${sessionId} after 3 attempts: ${lastError.message}`
+                        `Failed to disconnect session ${sessionId}: ${disconnectError.message}`
                     )
                 );
             }
         }
+        const remainingSessions = [...this.sessions.values()];
         this.sessions.clear();
+        for (const session of remainingSessions) {
+            session._markDisconnected();
+        }
 
         // Close connection
         if (this.connection) {
@@ -596,6 +598,7 @@ export class CopilotClient {
             }
             this.connection = null;
             this._rpc = null;
+            this._internalRpc = null;
         }
 
         // Clear models cache
@@ -668,6 +671,10 @@ export class CopilotClient {
     async forceStop(): Promise<void> {
         this.forceStopping = true;
 
+        for (const session of this.sessions.values()) {
+            session._markDisconnected();
+        }
+
         // Clear sessions immediately without trying to destroy them
         this.sessions.clear();
 
@@ -680,6 +687,7 @@ export class CopilotClient {
             }
             this.connection = null;
             this._rpc = null;
+            this._internalRpc = null;
         }
 
         // Clear models cache
@@ -761,7 +769,8 @@ export class CopilotClient {
             sessionId,
             this.connection!,
             undefined,
-            this.onGetTraceContext
+            this.onGetTraceContext,
+            (session) => this.unregisterSession(session)
         );
         session.registerTools(config.tools);
         session.registerCommands(config.commands);
@@ -793,10 +802,10 @@ export class CopilotClient {
         if (config.onEvent) {
             session.on(config.onEvent);
         }
-        this.sessions.set(sessionId, session);
-        this.setupSessionFs(session, config);
+        this.registerSession(session);
 
         try {
+            this.setupSessionFs(session, config);
             const response = await this.connection!.sendRequest("session.create", {
                 ...(await getTraceContext(this.onGetTraceContext)),
                 model: config.model,
@@ -853,7 +862,8 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
         } catch (e) {
-            this.sessions.delete(sessionId);
+            this.unregisterSession(session);
+            session._markDisconnected();
             throw e;
         }
 
@@ -899,7 +909,8 @@ export class CopilotClient {
             sessionId,
             this.connection!,
             undefined,
-            this.onGetTraceContext
+            this.onGetTraceContext,
+            (session) => this.unregisterSession(session)
         );
         session.registerTools(config.tools);
         session.registerCommands(config.commands);
@@ -931,10 +942,10 @@ export class CopilotClient {
         if (config.onEvent) {
             session.on(config.onEvent);
         }
-        this.sessions.set(sessionId, session);
-        this.setupSessionFs(session, config);
+        this.registerSession(session);
 
         try {
+            this.setupSessionFs(session, config);
             const response = await this.connection!.sendRequest("session.resume", {
                 ...(await getTraceContext(this.onGetTraceContext)),
                 sessionId,
@@ -993,7 +1004,8 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
         } catch (e) {
-            this.sessions.delete(sessionId);
+            this.unregisterSession(session);
+            session._markDisconnected();
             throw e;
         }
 
@@ -1245,7 +1257,12 @@ export class CopilotClient {
         }
 
         // Remove from local sessions map if present
-        this.sessions.delete(sessionId);
+        const session = this.sessions.get(sessionId);
+        if (session) {
+            session._markDisconnected();
+        } else {
+            this.sessions.delete(sessionId);
+        }
     }
 
     /**

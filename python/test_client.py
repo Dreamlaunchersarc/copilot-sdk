@@ -19,7 +19,7 @@ from copilot.client import (
     ModelSupports,
     SubprocessConfig,
 )
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.session import CopilotSession, PermissionHandler, PermissionRequestResult
 from e2e.testharness import CLI_PATH
 
 
@@ -72,6 +72,7 @@ class TestPermissionHandlerOptional:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all
             )
+            session._mark_disconnected()
             resumed = await client.resume_session(session.session_id, on_permission_request=None)
             assert resumed.session_id == session.session_id
         finally:
@@ -113,6 +114,204 @@ class TestCreateSessionConfig:
             }
         finally:
             await client.force_stop()
+
+
+class TestSessionLifecycle:
+    @pytest.mark.asyncio
+    async def test_direct_disconnect_unregisters_after_destroy_request(self):
+        sessions = {}
+
+        async def request(method, params):
+            if method == "session.destroy":
+                assert sessions["session-1"] is session
+            return {}
+
+        rpc_client = AsyncMock()
+        rpc_client.request = AsyncMock(side_effect=request)
+
+        def unregister(candidate):
+            if sessions.get(candidate.session_id) is candidate:
+                del sessions[candidate.session_id]
+
+        session = CopilotSession(
+            "session-1",
+            rpc_client,
+            on_disconnected=unregister,
+        )
+        sessions[session.session_id] = session
+
+        await session.disconnect()
+
+        rpc_client.request.assert_awaited_with("session.destroy", {"sessionId": "session-1"})
+        assert "session-1" not in sessions
+        with pytest.raises(RuntimeError, match="disconnected"):
+            await session.send("hello")
+
+    def test_stale_session_disconnect_does_not_unregister_replacement(self):
+        sessions = {}
+
+        def unregister(candidate):
+            if sessions.get(candidate.session_id) is candidate:
+                del sessions[candidate.session_id]
+
+        rpc_client = AsyncMock()
+        stale = CopilotSession("session-1", rpc_client, on_disconnected=unregister)
+        replacement = CopilotSession("session-1", rpc_client, on_disconnected=unregister)
+        sessions["session-1"] = replacement
+
+        stale._mark_disconnected()
+
+        assert sessions["session-1"] is replacement
+        replacement._mark_disconnected()
+
+    def test_rejects_duplicate_active_session_registration(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, log_level="error"))
+        rpc_client = AsyncMock()
+        first = CopilotSession("session-1", rpc_client)
+        second = CopilotSession("session-1", rpc_client)
+
+        client._register_session(first)
+
+        with pytest.raises(RuntimeError, match="already active"):
+            client._register_session(second)
+
+        first._mark_disconnected()
+
+    @pytest.mark.asyncio
+    async def test_failed_create_session_fs_setup_marks_session_disconnected(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                log_level="error",
+                session_fs={
+                    "initial_cwd": "/",
+                    "session_state_path": "/session-state",
+                    "conventions": "posix",
+                },
+            )
+        )
+        rpc_client = AsyncMock()
+        rpc_client.request = AsyncMock()
+        client._client = rpc_client
+        captured = {}
+
+        def failing_handler(session):
+            captured["session"] = session
+            raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await client.create_session(create_session_fs_handler=failing_handler)
+
+        session = captured["session"]
+        assert session.session_id not in client._sessions
+        with pytest.raises(RuntimeError, match="disconnected"):
+            await session.send("hello")
+        rpc_client.request.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_failed_resume_session_fs_setup_marks_session_disconnected(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                log_level="error",
+                session_fs={
+                    "initial_cwd": "/",
+                    "session_state_path": "/session-state",
+                    "conventions": "posix",
+                },
+            )
+        )
+        rpc_client = AsyncMock()
+        rpc_client.request = AsyncMock()
+        client._client = rpc_client
+        captured = {}
+
+        def failing_handler(session):
+            captured["session"] = session
+            raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await client.resume_session(
+                "session-1", create_session_fs_handler=failing_handler
+            )
+
+        session = captured["session"]
+        assert session.session_id not in client._sessions
+        with pytest.raises(RuntimeError, match="disconnected"):
+            await session.send("hello")
+        rpc_client.request.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_duplicate_create_marks_captured_session_disconnected(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                log_level="error",
+                session_fs={
+                    "initial_cwd": "/",
+                    "session_state_path": "/session-state",
+                    "conventions": "posix",
+                },
+            )
+        )
+        rpc_client = AsyncMock()
+        rpc_client.request = AsyncMock()
+        client._client = rpc_client
+        existing = CopilotSession("session-1", rpc_client)
+        client._register_session(existing)
+        captured = {}
+
+        def create_provider(session):
+            captured["session"] = session
+            return object()
+
+        with pytest.raises(RuntimeError, match="already active"):
+            await client.create_session(
+                session_id="session-1", create_session_fs_handler=create_provider
+            )
+
+        session = captured["session"]
+        assert client._sessions["session-1"] is existing
+        with pytest.raises(RuntimeError, match="disconnected"):
+            await session.send("hello")
+        rpc_client.request.assert_not_called()
+        existing._mark_disconnected()
+
+    @pytest.mark.asyncio
+    async def test_duplicate_resume_marks_captured_session_disconnected(self):
+        client = CopilotClient(
+            SubprocessConfig(
+                cli_path=CLI_PATH,
+                log_level="error",
+                session_fs={
+                    "initial_cwd": "/",
+                    "session_state_path": "/session-state",
+                    "conventions": "posix",
+                },
+            )
+        )
+        rpc_client = AsyncMock()
+        rpc_client.request = AsyncMock()
+        client._client = rpc_client
+        existing = CopilotSession("session-1", rpc_client)
+        client._register_session(existing)
+        captured = {}
+
+        def create_provider(session):
+            captured["session"] = session
+            return object()
+
+        with pytest.raises(RuntimeError, match="already active"):
+            await client.resume_session(
+                "session-1", create_session_fs_handler=create_provider
+            )
+
+        session = captured["session"]
+        assert client._sessions["session-1"] is existing
+        with pytest.raises(RuntimeError, match="disconnected"):
+            await session.send("hello")
+        rpc_client.request.assert_not_called()
+        existing._mark_disconnected()
 
 
 class TestURLParsing:
@@ -338,6 +537,7 @@ class TestOverridesBuiltInTool:
             def grep(params) -> str:
                 return "ok"
 
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -573,6 +773,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -624,6 +825,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -691,6 +893,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -789,6 +992,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -864,6 +1068,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -894,6 +1099,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -923,6 +1129,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -952,6 +1159,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,

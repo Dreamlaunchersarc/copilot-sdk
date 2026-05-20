@@ -1116,7 +1116,11 @@ class CopilotSession:
     """
 
     def __init__(
-        self, session_id: str, client: Any, workspace_path: os.PathLike[str] | str | None = None
+        self,
+        session_id: str,
+        client: Any,
+        workspace_path: os.PathLike[str] | str | None = None,
+        on_disconnected: Callable[[CopilotSession], None] | None = None,
     ):
         """
         Initialize a new CopilotSession.
@@ -1158,12 +1162,16 @@ class CopilotSession:
         self._client_session_apis = ClientSessionApiHandlers()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
+        self._disconnect_task: asyncio.Task[None] | None = None
+        self._disconnect_lock = threading.Lock()
+        self._on_disconnected = on_disconnected
 
     @property
     def rpc(self) -> SessionRpc:
         """Typed session-scoped RPC methods."""
+        self._assert_not_destroyed()
         if self._rpc is None:
-            self._rpc = SessionRpc(self._client, self.session_id)
+            self._rpc = SessionRpc(self._client, self.session_id, self._assert_not_destroyed)
         return self._rpc
 
     @property
@@ -1186,6 +1194,7 @@ class CopilotSession:
             >>> if ui_caps.get("elicitation"):
             ...     ok = await session.ui.confirm("Deploy to production?")
         """
+        self._assert_not_destroyed()
         return SessionUiApi(self)
 
     @functools.cached_property
@@ -1235,6 +1244,7 @@ class CopilotSession:
             ...     attachments=[{"type": "file", "path": "./src/main.py"}],
             ... )
         """
+        self._assert_not_destroyed()
         params: dict[str, Any] = {
             "sessionId": self.session_id,
             "prompt": prompt,
@@ -1301,6 +1311,7 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(data.content)
         """
+        self._assert_not_destroyed()
         total_start = time.perf_counter()
         idle_event = asyncio.Event()
         error_event: Exception | None = None
@@ -1403,6 +1414,7 @@ class CopilotSession:
             >>> # Later, to stop receiving events:
             >>> unsubscribe()
         """
+        self._assert_not_destroyed()
         with self._event_handlers_lock:
             self._event_handlers.add(handler)
 
@@ -1838,6 +1850,7 @@ class CopilotSession:
 
     def _assert_elicitation(self) -> None:
         """Raises if the host does not support elicitation."""
+        self._assert_not_destroyed()
         ui_caps = self._capabilities.get("ui", {})
         if not ui_caps.get("elicitation"):
             raise RuntimeError(
@@ -2235,6 +2248,7 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(f"Assistant: {data.content}")
         """
+        self._assert_not_destroyed()
         response = await self._client.request("session.getMessages", {"sessionId": self.session_id})
         # Convert dict events to SessionEvent objects
         events_dicts = response["events"]
@@ -2263,31 +2277,54 @@ class CopilotSession:
             >>> # Clean up when done — session can still be resumed later
             >>> await session.disconnect()
         """
-        # Ensure that the check and update of _destroyed are atomic so that
-        # only the first caller proceeds to send the destroy RPC.
-        with self._event_handlers_lock:
+        with self._disconnect_lock:
+            if self._destroyed:
+                return
+            if self._disconnect_task is None:
+                self._disconnect_task = asyncio.create_task(self._disconnect_core())
+            disconnect_task = self._disconnect_task
+
+        await asyncio.shield(disconnect_task)
+
+    async def _disconnect_core(self) -> None:
+        try:
+            await self._client.request("session.destroy", {"sessionId": self.session_id})
+        finally:
+            self._mark_disconnected()
+
+    def _assert_not_destroyed(self) -> None:
+        if self._destroyed:
+            raise RuntimeError("Session has been disconnected.")
+
+    def _mark_disconnected(self) -> None:
+        with self._disconnect_lock:
             if self._destroyed:
                 return
             self._destroyed = True
 
-        try:
-            await self._client.request("session.destroy", {"sessionId": self.session_id})
-        finally:
-            # Clear handlers even if the request fails.
-            with self._event_handlers_lock:
-                self._event_handlers.clear()
-            with self._tool_handlers_lock:
-                self._tool_handlers.clear()
-            with self._permission_handler_lock:
-                self._permission_handler = None
-            with self._command_handlers_lock:
-                self._command_handlers.clear()
-            with self._elicitation_handler_lock:
-                self._elicitation_handler = None
-            with self._exit_plan_mode_handler_lock:
-                self._exit_plan_mode_handler = None
-            with self._auto_mode_switch_handler_lock:
-                self._auto_mode_switch_handler = None
+        self._rpc = None
+        with self._event_handlers_lock:
+            self._event_handlers.clear()
+        with self._tool_handlers_lock:
+            self._tool_handlers.clear()
+        with self._permission_handler_lock:
+            self._permission_handler = None
+        with self._user_input_handler_lock:
+            self._user_input_handler = None
+        with self._command_handlers_lock:
+            self._command_handlers.clear()
+        with self._elicitation_handler_lock:
+            self._elicitation_handler = None
+        with self._exit_plan_mode_handler_lock:
+            self._exit_plan_mode_handler = None
+        with self._auto_mode_switch_handler_lock:
+            self._auto_mode_switch_handler = None
+        with self._hooks_lock:
+            self._hooks = None
+        with self._transform_callbacks_lock:
+            self._transform_callbacks = None
+        if self._on_disconnected is not None:
+            self._on_disconnected(self)
 
     async def destroy(self) -> None:
         """
@@ -2346,6 +2383,7 @@ class CopilotSession:
             >>> await asyncio.sleep(5)
             >>> await session.abort()
         """
+        self._assert_not_destroyed()
         await self._client.request("session.abort", {"sessionId": self.session_id})
 
     async def set_model(
@@ -2374,6 +2412,7 @@ class CopilotSession:
             >>> await session.set_model("gpt-4.1")
             >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
         """
+        self._assert_not_destroyed()
         rpc_caps = None
         if model_capabilities is not None:
             from .client import _capabilities_to_dict
@@ -2416,6 +2455,7 @@ class CopilotSession:
             >>> await session.log("Operation failed", level="error")
             >>> await session.log("Temporary status update", ephemeral=True)
         """
+        self._assert_not_destroyed()
         params = LogRequest(
             message=message,
             level=SessionLogLevel(level) if level is not None else None,

@@ -2514,12 +2514,13 @@ function emitPyApiGroup(
     }
     lines.push(`class ${apiName}:`);
     if (isSession) {
-        lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str):`);
+        lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str, assert_active: Callable[[], None] | None = None):`);
         lines.push(`        self._client = client`);
         lines.push(`        self._session_id = session_id`);
+        lines.push(`        self._assert_active = assert_active`);
         for (const [subGroupName] of subGroups) {
             const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
-            lines.push(`        self.${toSnakeCase(subGroupName)} = ${subApiName}(client, session_id)`);
+            lines.push(`        self.${toSnakeCase(subGroupName)} = ${subApiName}(client, session_id, assert_active)`);
         }
     } else {
         lines.push(`    def __init__(self, client: "JsonRpcClient"):`);
@@ -2559,11 +2560,12 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         lines.push(classPrefix === "_Internal"
             ? `    """Internal SDK session-scoped RPC methods. Not part of the public API."""`
             : `    """Typed session-scoped RPC methods."""`);
-        lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str):`);
+        lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str, assert_active: Callable[[], None] | None = None):`);
         lines.push(`        self._client = client`);
         lines.push(`        self._session_id = session_id`);
+        lines.push(`        self._assert_active = assert_active`);
         for (const [groupName] of groups) {
-            lines.push(`        self.${toSnakeCase(groupName)} = ${classPrefix}${toPascalCase(groupName)}Api(client, session_id)`);
+            lines.push(`        self.${toSnakeCase(groupName)} = ${classPrefix}${toPascalCase(groupName)}Api(client, session_id, assert_active)`);
         }
     } else {
         lines.push(`class ${wrapperName}:`);
@@ -2629,6 +2631,18 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
         experimental: method.stability === "experimental" && !groupExperimental,
         internal: method.visibility === "internal",
     });
+
+    if (isSession) {
+        lines.push(`        if self._assert_active is not None:`);
+        lines.push(`            self._assert_active()`);
+    }
+    if (hasParams && !paramsOptional) {
+        lines.push(`        if params is None:`);
+        lines.push(`            raise TypeError("params is required")`);
+    }
+    if (isSession || (hasParams && !paramsOptional)) {
+        lines.push(``);
+    }
 
     // Deserialize helper
     const innerTypeName = hasNullableResult ? resolveType(pythonResultTypeName(method, nullableInner)) : resultType;

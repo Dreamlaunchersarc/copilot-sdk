@@ -5,6 +5,9 @@ import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
+function markInactiveForResume(session: CopilotSession): void {
+    session._markDisconnected();
+}
 
 describe("CopilotClient", () => {
     it("allows createSession without onPermissionRequest", async () => {
@@ -82,6 +85,95 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("keeps a directly disconnected session registered until session.destroy completes", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        let session: CopilotSession;
+        const connection = {
+            sendRequest: vi.fn(async (method: string) => {
+                if (method === "session.destroy") {
+                    expect((client as any).sessions.get("session-1")).toBe(session);
+                }
+                return {};
+            }),
+        } as any;
+        session = new CopilotSession("session-1", connection, undefined, undefined, (s) =>
+            (client as any).unregisterSession(s)
+        );
+        (client as any).registerSession(session);
+
+        await session.disconnect();
+
+        expect(connection.sendRequest).toHaveBeenCalledWith("session.destroy", {
+            sessionId: "session-1",
+        });
+        expect((client as any).sessions.has("session-1")).toBe(false);
+        await expect(session.send({ prompt: "hello" })).rejects.toThrow(/disconnected/);
+        expect(() => session.rpc).toThrow(/disconnected/);
+    });
+
+    it("reports stop errors when session.destroy fails", async () => {
+        const client = new CopilotClient({ autoStart: false });
+        const connection = {
+            dispose: vi.fn(),
+            sendRequest: vi.fn(async (method: string) => {
+                if (method === "session.destroy") {
+                    throw new Error("destroy failed");
+                }
+                return {};
+            }),
+        } as any;
+        (client as any).connection = connection;
+        const session = new CopilotSession("session-1", connection, undefined, undefined, (s) =>
+            (client as any).unregisterSession(s)
+        );
+        (client as any).registerSession(session);
+
+        const errors = await client.stop();
+
+        expect(errors).toHaveLength(1);
+        expect(errors[0].message).toBe("Failed to disconnect session session-1: destroy failed");
+        expect(connection.sendRequest).toHaveBeenCalledTimes(1);
+        expect((client as any).sessions.size).toBe(0);
+        await expect(session.send({ prompt: "hello" })).rejects.toThrow(/disconnected/);
+    });
+
+    it("does not unregister a replacement session when a stale session disconnects", () => {
+        const client = new CopilotClient({ autoStart: false });
+        const connection = { sendRequest: vi.fn() } as any;
+        const stale = new CopilotSession("session-1", connection, undefined, undefined, (s) =>
+            (client as any).unregisterSession(s)
+        );
+        const replacement = new CopilotSession("session-1", connection, undefined, undefined, (s) =>
+            (client as any).unregisterSession(s)
+        );
+
+        (client as any).sessions.set("session-1", replacement);
+        stale._markDisconnected();
+
+        expect((client as any).sessions.get("session-1")).toBe(replacement);
+        replacement._markDisconnected();
+    });
+
+    it("rejects duplicate active session registrations", () => {
+        const client = new CopilotClient({ autoStart: false });
+        const connection = { sendRequest: vi.fn() } as any;
+        const first = new CopilotSession("session-1", connection);
+        const second = new CopilotSession("session-1", connection);
+
+        (client as any).registerSession(first);
+
+        expect(() => (client as any).registerSession(second)).toThrow(/already active/);
+        first._markDisconnected();
+    });
+
+    it("validates required generated RPC params before sending requests", async () => {
+        const connection = { sendRequest: vi.fn() } as any;
+        const session = new CopilotSession("session-1", connection);
+
+        await expect((session.rpc.commands.invoke as any)()).rejects.toThrow("params is required");
+        expect(connection.sendRequest).not.toHaveBeenCalled();
+    });
+
     it("forwards clientName in session.resume request", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -95,6 +187,7 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             clientName: "my-app",
             onPermissionRequest: approveAll,
@@ -136,6 +229,7 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             enableSessionTelemetry: false,
             onPermissionRequest: approveAll,
@@ -187,6 +281,7 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
 
         const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
@@ -206,6 +301,7 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             includeSubAgentStreamingEvents: false,
@@ -228,6 +324,7 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             continuePendingWork: true,
@@ -250,6 +347,7 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
 
         const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
@@ -308,6 +406,7 @@ describe("CopilotClient", () => {
                 throw new Error(`Unexpected method: ${method}`);
             });
 
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             provider: {
@@ -360,6 +459,7 @@ describe("CopilotClient", () => {
 
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             defaultAgent: { excludedTools: ["heavy-tool"] },
             onPermissionRequest: approveAll,
@@ -404,6 +504,7 @@ describe("CopilotClient", () => {
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 throw new Error(`Unexpected method: ${method}`);
             });
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             instructionDirectories,
             onPermissionRequest: approveAll,
@@ -432,6 +533,7 @@ describe("CopilotClient", () => {
                 throw new Error(`Unexpected method: ${method}`);
             });
 
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: defaultJoinSessionPermissionHandler,
         });
@@ -459,6 +561,7 @@ describe("CopilotClient", () => {
                 throw new Error(`Unexpected method: ${method}`);
             });
 
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
         });
@@ -486,6 +589,7 @@ describe("CopilotClient", () => {
                 throw new Error(`Unexpected method: ${method}`);
             });
 
+        markInactiveForResume(session);
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             onExitPlanMode: () => ({ approved: true }),
@@ -834,6 +938,7 @@ describe("CopilotClient", () => {
                     if (method === "session.resume") return { sessionId: params.sessionId };
                     throw new Error(`Unexpected method: ${method}`);
                 });
+            markInactiveForResume(session);
             await client.resumeSession(session.sessionId, {
                 onPermissionRequest: approveAll,
                 tools: [
@@ -912,6 +1017,7 @@ describe("CopilotClient", () => {
                     if (method === "session.resume") return { sessionId: params.sessionId };
                     throw new Error(`Unexpected method: ${method}`);
                 });
+            markInactiveForResume(session);
             await client.resumeSession(session.sessionId, {
                 onPermissionRequest: approveAll,
                 customAgents: [
@@ -1075,6 +1181,7 @@ describe("CopilotClient", () => {
                     if (method === "session.resume") return { sessionId: params.sessionId };
                     throw new Error(`Unexpected method: ${method}`);
                 });
+            markInactiveForResume(session);
             await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
 
             expect(spy).toHaveBeenCalledWith(
@@ -1186,6 +1293,7 @@ describe("CopilotClient", () => {
                     if (method === "session.resume") return { sessionId: params.sessionId };
                     throw new Error(`Unexpected method: ${method}`);
                 });
+            markInactiveForResume(session);
             await client.resumeSession(session.sessionId, {
                 onPermissionRequest: approveAll,
                 commands: [{ name: "deploy", description: "Deploy", handler: async () => {} }],

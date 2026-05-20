@@ -46,6 +46,55 @@ func TestRPCPermissionDecisionFromKindPreservesUnknownKind(t *testing.T) {
 	}
 }
 
+func TestSessionLifecycleCleanup(t *testing.T) {
+	client := NewClient(nil)
+	session := newSession("session-1", nil, "", client)
+
+	if err := client.registerSession(session); err != nil {
+		t.Fatalf("register session: %v", err)
+	}
+
+	session.markDisconnected()
+
+	if _, ok := client.sessions["session-1"]; ok {
+		t.Fatal("expected disconnected session to unregister from client")
+	}
+	if err := session.assertActive(); err == nil {
+		t.Fatal("expected disconnected session to reject further use")
+	}
+}
+
+func TestSessionLifecycleCleanupDoesNotRemoveReplacement(t *testing.T) {
+	client := NewClient(nil)
+	stale := newSession("session-1", nil, "", client)
+	replacement := newSession("session-1", nil, "", client)
+	client.sessions["session-1"] = replacement
+
+	stale.markDisconnected()
+
+	if got := client.sessions["session-1"]; got != replacement {
+		t.Fatalf("expected replacement session to remain registered, got %#v", got)
+	}
+
+	replacement.markDisconnected()
+}
+
+func TestClientRegisterSessionRejectsDuplicateActiveSession(t *testing.T) {
+	client := NewClient(nil)
+	first := newSession("session-1", nil, "", client)
+	second := newSession("session-1", nil, "", client)
+
+	if err := client.registerSession(first); err != nil {
+		t.Fatalf("register first session: %v", err)
+	}
+	if err := client.registerSession(second); err == nil || !strings.Contains(err.Error(), "already active") {
+		t.Fatalf("expected duplicate active session error, got %v", err)
+	}
+
+	first.markDisconnected()
+	second.markDisconnected()
+}
+
 func TestSession_On(t *testing.T) {
 	t.Run("multiple handlers all receive events", func(t *testing.T) {
 		session, cleanup := newTestSession()

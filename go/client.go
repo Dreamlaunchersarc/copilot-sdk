@@ -417,23 +417,15 @@ func (c *Client) Start(ctx context.Context) error {
 func (c *Client) Stop() error {
 	var errs []error
 
-	// Disconnect all active sessions
-	c.sessionsMux.Lock()
-	sessions := make([]*Session, 0, len(c.sessions))
-	for _, session := range c.sessions {
-		sessions = append(sessions, session)
-	}
-	c.sessionsMux.Unlock()
-
-	for _, session := range sessions {
+	for _, session := range c.snapshotSessions() {
 		if err := session.Disconnect(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to disconnect session %s: %w", session.SessionID, err))
 		}
 	}
 
-	c.sessionsMux.Lock()
-	c.sessions = make(map[string]*Session)
-	c.sessionsMux.Unlock()
+	for _, session := range c.clearSessions() {
+		session.markDisconnected()
+	}
 
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
@@ -504,10 +496,9 @@ func (c *Client) ForceStop() {
 		p.Kill()
 	}
 
-	// Clear sessions immediately without trying to destroy them
-	c.sessionsMux.Lock()
-	c.sessions = make(map[string]*Session)
-	c.sessionsMux.Unlock()
+	for _, session := range c.clearSessions() {
+		session.markDisconnected()
+	}
 
 	c.startStopMux.Lock()
 	defer c.startStopMux.Unlock()
@@ -554,6 +545,45 @@ func (c *Client) ensureConnected(ctx context.Context) error {
 		return c.Start(ctx)
 	}
 	return fmt.Errorf("client not connected. Call Start() first")
+}
+
+func (c *Client) registerSession(session *Session) error {
+	c.sessionsMux.Lock()
+	defer c.sessionsMux.Unlock()
+	if existing := c.sessions[session.SessionID]; existing != nil && existing != session {
+		return fmt.Errorf("session %s is already active", session.SessionID)
+	}
+	c.sessions[session.SessionID] = session
+	return nil
+}
+
+func (c *Client) unregisterSession(session *Session) {
+	c.sessionsMux.Lock()
+	defer c.sessionsMux.Unlock()
+	if c.sessions[session.SessionID] == session {
+		delete(c.sessions, session.SessionID)
+	}
+}
+
+func (c *Client) snapshotSessions() []*Session {
+	c.sessionsMux.Lock()
+	defer c.sessionsMux.Unlock()
+	sessions := make([]*Session, 0, len(c.sessions))
+	for _, session := range c.sessions {
+		sessions = append(sessions, session)
+	}
+	return sessions
+}
+
+func (c *Client) clearSessions() []*Session {
+	c.sessionsMux.Lock()
+	defer c.sessionsMux.Unlock()
+	sessions := make([]*Session, 0, len(c.sessions))
+	for _, session := range c.sessions {
+		sessions = append(sessions, session)
+	}
+	c.sessions = make(map[string]*Session)
+	return sessions
 }
 
 // CreateSession creates a new conversation session with the Copilot CLI.
@@ -704,7 +734,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
-	session := newSession(sessionID, c.client, "")
+	session := newSession(sessionID, c.client, "", c)
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -733,23 +763,22 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitch)
 	}
 
-	c.sessionsMux.Lock()
-	c.sessions[sessionID] = session
-	c.sessionsMux.Unlock()
+	if err := c.registerSession(session); err != nil {
+		session.markDisconnected()
+		return nil, err
+	}
 
 	if c.options.SessionFs != nil {
 		if config.CreateSessionFsHandler == nil {
-			c.sessionsMux.Lock()
-			delete(c.sessions, sessionID)
-			c.sessionsMux.Unlock()
+			c.unregisterSession(session)
+			session.markDisconnected()
 			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
 		}
 		provider := config.CreateSessionFsHandler(session)
 		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
 			if _, ok := provider.(SessionFsSqliteProvider); !ok {
-				c.sessionsMux.Lock()
-				delete(c.sessions, sessionID)
-				c.sessionsMux.Unlock()
+				c.unregisterSession(session)
+				session.markDisconnected()
 				return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
 			}
 		}
@@ -758,17 +787,15 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	result, err := c.client.Request("session.create", req)
 	if err != nil {
-		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
-		c.sessionsMux.Unlock()
+		c.unregisterSession(session)
+		session.markDisconnected()
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	var response createSessionResponse
 	if err := json.Unmarshal(result, &response); err != nil {
-		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
-		c.sessionsMux.Unlock()
+		c.unregisterSession(session)
+		session.markDisconnected()
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
@@ -889,7 +916,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
-	session := newSession(sessionID, c.client, "")
+	session := newSession(sessionID, c.client, "", c)
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -918,23 +945,22 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitch)
 	}
 
-	c.sessionsMux.Lock()
-	c.sessions[sessionID] = session
-	c.sessionsMux.Unlock()
+	if err := c.registerSession(session); err != nil {
+		session.markDisconnected()
+		return nil, err
+	}
 
 	if c.options.SessionFs != nil {
 		if config.CreateSessionFsHandler == nil {
-			c.sessionsMux.Lock()
-			delete(c.sessions, sessionID)
-			c.sessionsMux.Unlock()
+			c.unregisterSession(session)
+			session.markDisconnected()
 			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
 		}
 		provider := config.CreateSessionFsHandler(session)
 		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
 			if _, ok := provider.(SessionFsSqliteProvider); !ok {
-				c.sessionsMux.Lock()
-				delete(c.sessions, sessionID)
-				c.sessionsMux.Unlock()
+				c.unregisterSession(session)
+				session.markDisconnected()
 				return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
 			}
 		}
@@ -943,17 +969,15 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 
 	result, err := c.client.Request("session.resume", req)
 	if err != nil {
-		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
-		c.sessionsMux.Unlock()
+		c.unregisterSession(session)
+		session.markDisconnected()
 		return nil, fmt.Errorf("failed to resume session: %w", err)
 	}
 
 	var response resumeSessionResponse
 	if err := json.Unmarshal(result, &response); err != nil {
-		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
-		c.sessionsMux.Unlock()
+		c.unregisterSession(session)
+		session.markDisconnected()
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
@@ -1073,10 +1097,12 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 		return fmt.Errorf("failed to delete session %s: %s", sessionID, errorMsg)
 	}
 
-	// Remove from local sessions map if present
 	c.sessionsMux.Lock()
-	delete(c.sessions, sessionID)
+	session := c.sessions[sessionID]
 	c.sessionsMux.Unlock()
+	if session != nil {
+		session.markDisconnected()
+	}
 
 	return nil
 }

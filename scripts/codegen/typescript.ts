@@ -656,7 +656,7 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
 
     if (schema.session) {
         lines.push(`/** Create typed session-scoped RPC methods. */`);
-        lines.push(`export function createSessionRpc(connection: MessageConnection, sessionId: string) {`);
+        lines.push(`export function createSessionRpc(connection: MessageConnection, sessionId: string, assertActive?: () => void) {`);
         lines.push(`    return {`);
         lines.push(...emitGroup(schema.session, "        ", true, false, false, "public"));
         lines.push(`    };`);
@@ -669,7 +669,7 @@ function hasInternalMethods(node: Record<string, unknown>): boolean {
             lines.push(` * surface. Not exported on the public client API.`);
             lines.push(` * @internal`);
             lines.push(` */`);
-            lines.push(`export function createInternalSessionRpc(connection: MessageConnection, sessionId: string) {`);
+            lines.push(`export function createInternalSessionRpc(connection: MessageConnection, sessionId: string, assertActive?: () => void) {`);
             lines.push(`    return {`);
             lines.push(...emitGroup(schema.session, "        ", true, false, false, "internal"));
             lines.push(`    };`);
@@ -711,13 +711,14 @@ function emitGroup(
                 : [];
             const hasParams = hasSchemaPayload(effectiveParams);
             const hasNonSessionParams = paramEntries.length > 0;
+            const paramsOptional = isParamsOptional(value);
 
             const sigParams: string[] = [];
             let bodyArg: string;
 
             if (isSession) {
                 if (hasNonSessionParams) {
-                    const optMark = isParamsOptional(value) ? "?" : "";
+                    const optMark = paramsOptional ? "?" : "";
                     // sessionId is already stripped from the generated type definition,
                     // so no need for Omit<..., "sessionId">
                     sigParams.push(`params${optMark}: ${paramsType}`);
@@ -727,7 +728,7 @@ function emitGroup(
                 }
             } else {
                 if (hasParams) {
-                    const optMark = isParamsOptional(value) ? "?" : "";
+                    const optMark = paramsOptional ? "?" : "";
                     sigParams.push(`params${optMark}: ${paramsType}`);
                     bodyArg = "params";
                 } else {
@@ -741,8 +742,17 @@ function emitGroup(
                 includeDeprecated: (value as RpcMethod).deprecated && !parentDeprecated,
                 includeExperimental: (value as RpcMethod).stability === "experimental" && !parentExperimental,
             });
-            lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
-            lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
+            lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> => {`);
+            if (isSession) {
+                lines.push(`${indent}    assertActive?.();`);
+            }
+            if (sigParams.length > 0 && !paramsOptional) {
+                lines.push(`${indent}    if (params == null) {`);
+                lines.push(`${indent}        throw new TypeError("params is required");`);
+                lines.push(`${indent}    }`);
+            }
+            lines.push(`${indent}    return connection.sendRequest("${rpcMethod}", ${bodyArg});`);
+            lines.push(`${indent}},`);
         } else if (typeof value === "object" && value !== null) {
             const groupExperimental = isNodeFullyExperimental(value as Record<string, unknown>);
             const groupDeprecated = isNodeFullyDeprecated(value as Record<string, unknown>);

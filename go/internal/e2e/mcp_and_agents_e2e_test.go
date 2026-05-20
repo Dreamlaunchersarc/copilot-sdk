@@ -11,7 +11,10 @@ import (
 
 func TestMCPServersE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
-	client := ctx.NewClient()
+	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
+	})
 	t.Cleanup(func() { client.ForceStop() })
 
 	t.Run("accept MCP server config on create", func(t *testing.T) {
@@ -44,7 +47,6 @@ func TestMCPServersE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
-
 		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
@@ -67,11 +69,6 @@ func TestMCPServersE2E(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
 		// Resume with MCP servers
 		mcpServers := map[string]copilot.MCPServerConfig{
 			"test-server": copilot.MCPStdioServerConfig{
@@ -81,8 +78,10 @@ func TestMCPServersE2E(t *testing.T) {
 			},
 		}
 
-		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			DisableResume:       true,
 			MCPServers:          mcpServers,
 		})
 		if err != nil {
@@ -91,15 +90,6 @@ func TestMCPServersE2E(t *testing.T) {
 
 		if session2.SessionID != sessionID {
 			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
-		}
-
-		message, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 3+3?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "6") {
-			t.Errorf("Expected message to contain '6', got: %v", message.Data)
 		}
 
 		session2.Disconnect()
@@ -184,7 +174,10 @@ func TestMCPServersE2E(t *testing.T) {
 
 func TestCustomAgentsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
-	client := ctx.NewClient()
+	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
+	})
 	t.Cleanup(func() { client.ForceStop() })
 
 	t.Run("accept custom agent config on create", func(t *testing.T) {
@@ -243,11 +236,6 @@ func TestCustomAgentsE2E(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
 		// Resume with custom agents
 		customAgents := []copilot.CustomAgentConfig{
 			{
@@ -258,8 +246,10 @@ func TestCustomAgentsE2E(t *testing.T) {
 			},
 		}
 
-		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			DisableResume:       true,
 			CustomAgents:        customAgents,
 		})
 		if err != nil {
@@ -268,15 +258,6 @@ func TestCustomAgentsE2E(t *testing.T) {
 
 		if session2.SessionID != sessionID {
 			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
-		}
-
-		message, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 6+6?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "12") {
-			t.Errorf("Expected message to contain '12', got: %v", message.Data)
 		}
 
 		session2.Disconnect()

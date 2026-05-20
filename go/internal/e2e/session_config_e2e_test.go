@@ -180,7 +180,10 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 	const clientName = "go-public-surface-client"
 
 	ctx := testharness.NewTestContext(t)
-	client := ctx.NewClient()
+	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
+	})
 	t.Cleanup(func() { client.ForceStop() })
 
 	if err := client.Start(t.Context()); err != nil {
@@ -290,8 +293,10 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		sessionID := session1.SessionID
 		t.Cleanup(func() { _ = session1.Disconnect() })
 
-		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			DisableResume:       true,
 			Model:               "claude-sonnet-4.5",
 			Provider:            createProxyProvider(ctx, providerHeaderName, "resume-provider-header"),
 		})
@@ -452,8 +457,10 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		sessionID := session1.SessionID
 		t.Cleanup(func() { _ = session1.Disconnect() })
 
-		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			DisableResume:       true,
 			WorkingDirectory:    subDir,
 		})
 		if err != nil {
@@ -485,8 +492,10 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		t.Cleanup(func() { _ = session1.Disconnect() })
 
 		const resumeInstruction = "End the response with RESUME_SYSTEM_MESSAGE_SENTINEL."
-		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			DisableResume:       true,
 			SystemMessage: &copilot.SystemMessageConfig{
 				Mode:    "append",
 				Content: resumeInstruction,
@@ -587,8 +596,10 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session1.Disconnect() })
 
-		session2, err := client.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			DisableResume:          true,
 			WorkingDirectory:       projectDir,
 			InstructionDirectories: []string{instructionDir},
 		})
@@ -626,8 +637,10 @@ func TestSessionConfigExtrasE2E(t *testing.T) {
 		sessionID := session1.SessionID
 		t.Cleanup(func() { _ = session1.Disconnect() })
 
-		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			DisableResume:       true,
 			AvailableTools:      []string{"view"},
 		})
 		if err != nil {

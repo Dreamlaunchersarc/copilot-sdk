@@ -136,8 +136,10 @@ func TestCommandsE2E(t *testing.T) {
 		sessionID := session1.SessionID
 		t.Cleanup(func() { _ = session1.Disconnect() })
 
-		session2, err := client1.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client1)
+		session2, err := resumeClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			DisableResume:       true,
 			Commands: []copilot.CommandDefinition{
 				{Name: "deploy", Description: "Deploy", Handler: func(_ copilot.CommandContext) error { return nil }},
 			},

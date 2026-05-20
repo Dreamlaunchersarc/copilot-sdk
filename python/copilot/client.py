@@ -1022,6 +1022,18 @@ class CopilotClient:
             raise RuntimeError("Client is not connected. Call start() first.")
         return self._rpc
 
+    def _register_session(self, session: CopilotSession) -> None:
+        with self._sessions_lock:
+            existing = self._sessions.get(session.session_id)
+            if existing is not None and existing is not session:
+                raise RuntimeError(f"Session {session.session_id} is already active.")
+            self._sessions[session.session_id] = session
+
+    def _unregister_session(self, session: CopilotSession) -> None:
+        with self._sessions_lock:
+            if self._sessions.get(session.session_id) is session:
+                del self._sessions[session.session_id]
+
     @property
     def actual_port(self) -> int | None:
         """The actual TCP port the CLI server is listening on, if using TCP transport.
@@ -1229,11 +1241,8 @@ class CopilotClient:
         """
         errors: list[StopError] = []
 
-        # Atomically take ownership of all sessions and clear the dict
-        # so no other thread can access them
         with self._sessions_lock:
             sessions_to_destroy = list(self._sessions.values())
-            self._sessions.clear()
 
         for session in sessions_to_destroy:
             try:
@@ -1247,6 +1256,12 @@ class CopilotClient:
                 errors.append(
                     StopError(message=f"Failed to disconnect session {session.session_id}: {e}")
                 )
+
+        with self._sessions_lock:
+            remaining_sessions = list(self._sessions.values())
+            self._sessions.clear()
+        for session in remaining_sessions:
+            session._mark_disconnected()
 
         # Close client
         if self._client:
@@ -1290,9 +1305,11 @@ class CopilotClient:
             ... except asyncio.TimeoutError:
             ...     await client.force_stop()
         """
-        # Clear sessions immediately without trying to destroy them
         with self._sessions_lock:
+            sessions_to_destroy = list(self._sessions.values())
             self._sessions.clear()
+        for session in sessions_to_destroy:
+            session._mark_disconnected()
 
         # Close the transport first to signal the server immediately.
         # For external servers (TCP), this closes the socket.
@@ -1621,24 +1638,33 @@ class CopilotClient:
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         setup_start = time.perf_counter()
-        session = CopilotSession(actual_session_id, self._client, workspace_path=None)
-        if self._session_fs_config:
-            if create_session_fs_handler is None:
-                raise ValueError(
-                    "create_session_fs_handler is required in session config when "
-                    "session_fs is enabled in client options."
-                )
-            fs_provider: SessionFsProvider = create_session_fs_handler(session)
-            caps = self._session_fs_config.get("capabilities")
-            if caps and caps.get("sqlite"):
-                from .session_fs_provider import SessionFsSqliteProvider
-
-                if not isinstance(fs_provider, SessionFsSqliteProvider):
+        session = CopilotSession(
+            actual_session_id,
+            self._client,
+            workspace_path=None,
+            on_disconnected=self._unregister_session,
+        )
+        try:
+            if self._session_fs_config:
+                if create_session_fs_handler is None:
                     raise ValueError(
-                        "SessionFs capabilities declare SQLite support but the provider "
-                        "does not implement SessionFsSqliteProvider"
+                        "create_session_fs_handler is required in session config when "
+                        "session_fs is enabled in client options."
                     )
-            session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+                fs_provider: SessionFsProvider = create_session_fs_handler(session)
+                caps = self._session_fs_config.get("capabilities")
+                if caps and caps.get("sqlite"):
+                    from .session_fs_provider import SessionFsSqliteProvider
+
+                    if not isinstance(fs_provider, SessionFsSqliteProvider):
+                        raise ValueError(
+                            "SessionFs capabilities declare SQLite support but the provider "
+                            "does not implement SessionFsSqliteProvider"
+                        )
+                session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+        except BaseException:
+            session._mark_disconnected()
+            raise
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
@@ -1656,8 +1682,11 @@ class CopilotClient:
             session._register_transform_callbacks(transform_callbacks)
         if on_event:
             session.on(on_event)
-        with self._sessions_lock:
-            self._sessions[actual_session_id] = session
+        try:
+            self._register_session(session)
+        except BaseException:
+            session._mark_disconnected()
+            raise
         log_timing(
             logger,
             logging.DEBUG,
@@ -1683,8 +1712,8 @@ class CopilotClient:
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
         except BaseException as exc:
-            with self._sessions_lock:
-                self._sessions.pop(actual_session_id, None)
+            self._unregister_session(session)
+            session._mark_disconnected()
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
                     logger,
@@ -1974,24 +2003,33 @@ class CopilotClient:
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         setup_start = time.perf_counter()
-        session = CopilotSession(session_id, self._client, workspace_path=None)
-        if self._session_fs_config:
-            if create_session_fs_handler is None:
-                raise ValueError(
-                    "create_session_fs_handler is required in session config when "
-                    "session_fs is enabled in client options."
-                )
-            fs_provider: SessionFsProvider = create_session_fs_handler(session)
-            caps = self._session_fs_config.get("capabilities")
-            if caps and caps.get("sqlite"):
-                from .session_fs_provider import SessionFsSqliteProvider
-
-                if not isinstance(fs_provider, SessionFsSqliteProvider):
+        session = CopilotSession(
+            session_id,
+            self._client,
+            workspace_path=None,
+            on_disconnected=self._unregister_session,
+        )
+        try:
+            if self._session_fs_config:
+                if create_session_fs_handler is None:
                     raise ValueError(
-                        "SessionFs capabilities declare SQLite support but the provider "
-                        "does not implement SessionFsSqliteProvider"
+                        "create_session_fs_handler is required in session config when "
+                        "session_fs is enabled in client options."
                     )
-            session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+                fs_provider: SessionFsProvider = create_session_fs_handler(session)
+                caps = self._session_fs_config.get("capabilities")
+                if caps and caps.get("sqlite"):
+                    from .session_fs_provider import SessionFsSqliteProvider
+
+                    if not isinstance(fs_provider, SessionFsSqliteProvider):
+                        raise ValueError(
+                            "SessionFs capabilities declare SQLite support but the provider "
+                            "does not implement SessionFsSqliteProvider"
+                        )
+                session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+        except BaseException:
+            session._mark_disconnected()
+            raise
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
@@ -2009,8 +2047,11 @@ class CopilotClient:
             session._register_transform_callbacks(transform_callbacks)
         if on_event:
             session.on(on_event)
-        with self._sessions_lock:
-            self._sessions[session_id] = session
+        try:
+            self._register_session(session)
+        except BaseException:
+            session._mark_disconnected()
+            raise
         log_timing(
             logger,
             logging.DEBUG,
@@ -2036,8 +2077,8 @@ class CopilotClient:
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
         except BaseException as exc:
-            with self._sessions_lock:
-                self._sessions.pop(session_id, None)
+            self._unregister_session(session)
+            session._mark_disconnected()
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
                     logger,
@@ -2281,8 +2322,9 @@ class CopilotClient:
 
         # Remove from local sessions map if present
         with self._sessions_lock:
-            if session_id in self._sessions:
-                del self._sessions[session_id]
+            session = self._sessions.get(session_id)
+        if session is not None:
+            session._mark_disconnected()
 
     async def get_last_session_id(self) -> str | None:
         """

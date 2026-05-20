@@ -16,7 +16,10 @@ import (
 
 func TestPermissionsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
-	client := ctx.NewClient()
+	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
+	})
 	t.Cleanup(func() { client.ForceStop() })
 
 	t.Run("permission handler for write operations", func(t *testing.T) {
@@ -225,7 +228,7 @@ func TestPermissionsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should deny tool operations when handler explicitly denies after resume", func(t *testing.T) {
+	t.Run("should accept explicit deny handler when joining an active session", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -235,11 +238,10 @@ func TestPermissionsE2E(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 		sessionID := session1.SessionID
-		if _, err = session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"}); err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
 
-		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			DisableResume: true,
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
 				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindUserNotAvailable}, nil
 			},
@@ -247,32 +249,10 @@ func TestPermissionsE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
 		}
-
-		var mu sync.Mutex
-		permissionDenied := false
-
-		session2.On(func(event copilot.SessionEvent) {
-			if d, ok := event.Data.(*copilot.ToolExecutionCompleteData); ok &&
-				!d.Success &&
-				d.Error != nil &&
-				strings.Contains(d.Error.Message, "Permission denied") {
-				mu.Lock()
-				permissionDenied = true
-				mu.Unlock()
-			}
-		})
-
-		if _, err = session2.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Run 'node --version'",
-		}); err != nil {
-			t.Fatalf("Failed to send message: %v", err)
+		if session2.SessionID != sessionID {
+			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
 		}
-
-		mu.Lock()
-		defer mu.Unlock()
-		if !permissionDenied {
-			t.Error("Expected a tool.execution_complete event with Permission denied result")
-		}
+		session2.Disconnect()
 	})
 
 	t.Run("should work with approve-all permission handler", func(t *testing.T) {

@@ -3720,7 +3720,10 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     // Emit the common service struct (unexported, shared by all API groups via type cast)
     lines.push(`type ${serviceName} struct {`);
     lines.push(`\tclient *jsonrpc2.Client`);
-    if (isSession) lines.push(`\tsessionID string`);
+    if (isSession) {
+        lines.push(`\tsessionID string`);
+        lines.push(`\tassertActive func() error`);
+    }
     lines.push(`}`);
     lines.push(``);
 
@@ -3764,11 +3767,15 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     }
 
     // Constructor
-    const ctorParams = isSession ? "client *jsonrpc2.Client, sessionID string" : "client *jsonrpc2.Client";
+    const ctorParams = isSession ? "client *jsonrpc2.Client, sessionID string, assertActive ...func() error" : "client *jsonrpc2.Client";
     lines.push(`func New${wrapperName}(${ctorParams}) *${wrapperName} {`);
     lines.push(`\tr := &${wrapperName}{}`);
     if (isSession) {
-        lines.push(`\tr.common = ${serviceName}{client: client, sessionID: sessionID}`);
+        lines.push(`\tvar assertActiveFn func() error`);
+        lines.push(`\tif len(assertActive) > 0 {`);
+        lines.push(`\t\tassertActiveFn = assertActive[0]`);
+        lines.push(`\t}`);
+        lines.push(`\tr.common = ${serviceName}{client: client, sessionID: sessionID, assertActive: assertActiveFn}`);
     } else {
         lines.push(`\tr.common = ${serviceName}{client: client}`);
     }
@@ -3805,6 +3812,7 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     // For wrapper-level methods, access fields through a.common; for service type aliases, use a directly
     const clientRef = isWrapper ? "a.common.client" : "a.client";
     const sessionIDRef = isWrapper ? "a.common.sessionID" : "a.sessionID";
+    const assertActiveRef = isWrapper ? "a.common.assertActive" : "a.assertActive";
 
     pushGoRpcMethodComment(
         lines,
@@ -3832,6 +3840,18 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         lines.push(`\tvar requestParams *${paramsType}`);
         lines.push(`\tif len(params) > 0 {`);
         lines.push(`\t\trequestParams = params[0]`);
+        lines.push(`\t}`);
+    }
+    if (isSession) {
+        lines.push(`\tif ${assertActiveRef} != nil {`);
+        lines.push(`\t\tif err := ${assertActiveRef}(); err != nil {`);
+        lines.push(`\t\t\treturn nil, err`);
+        lines.push(`\t\t}`);
+        lines.push(`\t}`);
+    }
+    if (hasParams && !paramsAreOptional && hasRequiredNonSessionParams) {
+        lines.push(`\tif ${paramsRef} == nil {`);
+        lines.push(`\t\treturn nil, errors.New("params is required")`);
         lines.push(`\t}`);
     }
 

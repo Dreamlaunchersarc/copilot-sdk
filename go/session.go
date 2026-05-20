@@ -53,6 +53,7 @@ type Session struct {
 	SessionID             string
 	workspacePath         string
 	client                *jsonrpc2.Client
+	owner                 *Client
 	clientSessionApis     *rpc.ClientSessionApiHandlers
 	handlers              []sessionHandler
 	nextHandlerID         uint64
@@ -82,6 +83,10 @@ type Session struct {
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
 	eventCh   chan SessionEvent
 	closeOnce sync.Once // guards eventCh close so Disconnect is safe to call more than once
+	stateMu   sync.Mutex
+	closed    bool
+	closing   chan struct{}
+	closeErr  error
 
 	// RPC provides typed session-scoped RPC methods.
 	RPC *rpc.SessionRpc
@@ -95,20 +100,30 @@ func (s *Session) WorkspacePath() string {
 }
 
 // newSession creates a new session wrapper with the given session ID and client.
-func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
+func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string, owner *Client) *Session {
 	s := &Session{
 		SessionID:         sessionID,
 		workspacePath:     workspacePath,
 		client:            client,
+		owner:             owner,
 		clientSessionApis: &rpc.ClientSessionApiHandlers{},
 		handlers:          make([]sessionHandler, 0),
 		toolHandlers:      make(map[string]ToolHandler),
 		commandHandlers:   make(map[string]CommandHandler),
 		eventCh:           make(chan SessionEvent, 128),
-		RPC:               rpc.NewSessionRpc(client, sessionID),
 	}
+	s.RPC = rpc.NewSessionRpc(client, sessionID, s.assertActive)
 	go s.processEvents()
 	return s
+}
+
+func (s *Session) assertActive() error {
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	if s.closed {
+		return fmt.Errorf("session has been disconnected")
+	}
+	return nil
 }
 
 // Send sends a message to this session and waits for the response.
@@ -134,6 +149,9 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 //	    log.Printf("Failed to send message: %v", err)
 //	}
 func (s *Session) Send(ctx context.Context, options MessageOptions) (string, error) {
+	if err := s.assertActive(); err != nil {
+		return "", err
+	}
 	traceparent, tracestate := getTraceContext(ctx)
 	req := sessionSendRequest{
 		SessionID:      s.SessionID,
@@ -187,6 +205,9 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 //	    }
 //	}
 func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*SessionEvent, error) {
+	if err := s.assertActive(); err != nil {
+		return nil, err
+	}
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
@@ -752,6 +773,9 @@ func (s *Session) UI() *SessionUI {
 
 // assertElicitation checks that the host supports elicitation and returns an error if not.
 func (s *Session) assertElicitation() error {
+	if err := s.assertActive(); err != nil {
+		return err
+	}
 	caps := s.Capabilities()
 	if caps.UI == nil || !caps.UI.Elicitation {
 		return fmt.Errorf("elicitation is not supported by the host; check session.Capabilities().UI.Elicitation before calling UI methods")
@@ -1168,6 +1192,9 @@ func rpcPermissionDecisionFromKind(kind rpc.PermissionDecisionKind) rpc.Permissi
 //	    }
 //	}
 func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
+	if err := s.assertActive(); err != nil {
+		return nil, err
+	}
 
 	result, err := s.client.Request("session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
 	if err != nil {
@@ -1204,14 +1231,50 @@ func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
 //	    log.Printf("Failed to disconnect session: %v", err)
 //	}
 func (s *Session) Disconnect() error {
+	s.stateMu.Lock()
+	if s.closed {
+		s.stateMu.Unlock()
+		return nil
+	}
+	if s.closing != nil {
+		closing := s.closing
+		s.stateMu.Unlock()
+		<-closing
+		return s.closeErr
+	}
+	s.closing = make(chan struct{})
+	closing := s.closing
+	s.stateMu.Unlock()
+
+	err := s.disconnectCore()
+
+	s.stateMu.Lock()
+	s.closeErr = err
+	close(closing)
+	s.stateMu.Unlock()
+	return err
+}
+
+func (s *Session) disconnectCore() error {
+	defer s.markDisconnected()
 	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
+	return nil
+}
+
+func (s *Session) markDisconnected() {
+	s.stateMu.Lock()
+	if s.closed {
+		s.stateMu.Unlock()
+		return
+	}
+	s.closed = true
+	s.stateMu.Unlock()
 
 	s.closeOnce.Do(func() { close(s.eventCh) })
 
-	// Clear handlers
 	s.handlerMutex.Lock()
 	s.handlers = nil
 	s.handlerMutex.Unlock()
@@ -1232,7 +1295,29 @@ func (s *Session) Disconnect() error {
 	s.elicitationHandler = nil
 	s.elicitationMu.Unlock()
 
-	return nil
+	s.userInputMux.Lock()
+	s.userInputHandler = nil
+	s.userInputMux.Unlock()
+
+	s.exitPlanModeMu.Lock()
+	s.exitPlanModeHandler = nil
+	s.exitPlanModeMu.Unlock()
+
+	s.autoModeSwitchMu.Lock()
+	s.autoModeSwitchHandler = nil
+	s.autoModeSwitchMu.Unlock()
+
+	s.hooksMux.Lock()
+	s.hooks = nil
+	s.hooksMux.Unlock()
+
+	s.transformMu.Lock()
+	s.transformCallbacks = nil
+	s.transformMu.Unlock()
+
+	if s.owner != nil {
+		s.owner.unregisterSession(s)
+	}
 }
 
 // Deprecated: Use [Session.Disconnect] instead. Destroy will be removed in a future release.
@@ -1265,6 +1350,9 @@ func (s *Session) Destroy() error {
 //	    log.Printf("Failed to abort: %v", err)
 //	}
 func (s *Session) Abort(ctx context.Context) error {
+	if err := s.assertActive(); err != nil {
+		return err
+	}
 	_, err := s.client.Request("session.abort", sessionAbortRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to abort session: %w", err)
@@ -1294,6 +1382,9 @@ type SetModelOptions struct {
 //	    log.Printf("Failed to set model: %v", err)
 //	}
 func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOptions) error {
+	if err := s.assertActive(); err != nil {
+		return err
+	}
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
 		params.ReasoningEffort = opts.ReasoningEffort
@@ -1334,6 +1425,9 @@ type LogOptions struct {
 //	// Ephemeral message (not persisted)
 //	session.Log(ctx, "Working...", &copilot.LogOptions{Ephemeral: copilot.Bool(true)})
 func (s *Session) Log(ctx context.Context, message string, opts *LogOptions) error {
+	if err := s.assertActive(); err != nil {
+		return err
+	}
 	params := &rpc.LogRequest{Message: message}
 
 	if opts != nil {

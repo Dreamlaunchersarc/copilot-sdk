@@ -17,7 +17,10 @@ import (
 
 func TestSessionE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
-	client := ctx.NewClient()
+	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+		opts.UseStdio = copilot.Bool(false)
+		opts.TCPConnectionToken = sharedTcpToken
+	})
 	t.Cleanup(func() { client.ForceStop() })
 
 	t.Run("should create and disconnect sessions", func(t *testing.T) {
@@ -56,8 +59,8 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		_, err = session.GetMessages(t.Context())
-		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Errorf("Expected GetMessages to fail with 'not found' after disconnect, got %v", err)
+		if err == nil || !strings.Contains(err.Error(), "disconnected") {
+			t.Errorf("Expected GetMessages to fail with 'disconnected' after disconnect, got %v", err)
 		}
 	})
 
@@ -428,7 +431,7 @@ func TestSessionE2E(t *testing.T) {
 		t.Skip("Known race condition - see TypeScript test")
 	})
 
-	t.Run("should resume a session using the same client", func(t *testing.T) {
+	t.Run("should reject resuming an active session using the same client", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create initial session
@@ -438,50 +441,12 @@ func TestSessionE2E(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session1)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
-		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "2") {
-			t.Errorf("Expected answer to contain '2', got %v", answer.Data)
-		}
-
-		// Resume using the same client
-		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		// The same client already owns an active Session object for this ID.
+		_, err = client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})
-		if err != nil {
-			t.Fatalf("Failed to resume session: %v", err)
-		}
-
-		if session2.SessionID != sessionID {
-			t.Errorf("Expected resumed session ID to match, got %q vs %q", session2.SessionID, sessionID)
-		}
-
-		answer2, err := testharness.GetFinalAssistantMessage(t.Context(), session2, true)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message from resumed session: %v", err)
-		}
-
-		if ad, ok := answer2.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "2") {
-			t.Errorf("Expected resumed session answer to contain '2', got %v", answer2.Data)
-		}
-
-		// Can continue the conversation statefully
-		answer3, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"})
-		if err != nil {
-			t.Fatalf("Failed to send follow-up message: %v", err)
-		}
-		if answer3 == nil {
-			t.Errorf("Expected follow-up answer to contain '4', got nil")
-		} else if ad, ok := answer3.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "4") {
-			t.Errorf("Expected follow-up answer to contain '4', got %v", answer3)
+		if err == nil || !strings.Contains(err.Error(), "already active") {
+			t.Fatalf("Expected active duplicate resume to fail, got %v", err)
 		}
 	})
 
@@ -581,8 +546,10 @@ func TestSessionE2E(t *testing.T) {
 		sessionID := session.SessionID
 
 		// Resume the session with a provider
-		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+		resumeClient := newResumeClient(t, client)
+		session2, err := resumeClient.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			DisableResume:       true,
 			Provider: &copilot.ProviderConfig{
 				Type:    "openai",
 				BaseURL: "https://api.openai.com/v1",
@@ -1064,6 +1031,16 @@ func getSystemMessage(exchange testharness.ParsedHttpExchange) string {
 		}
 	}
 	return ""
+}
+
+func newResumeClient(t *testing.T, server *copilot.Client) *copilot.Client {
+	t.Helper()
+	client := copilot.NewClient(&copilot.ClientOptions{
+		CLIUrl:             serverCliURL(t, server),
+		TCPConnectionToken: sharedTcpToken,
+	})
+	t.Cleanup(func() { client.ForceStop() })
+	return client
 }
 
 func TestSetModelWithReasoningEffortE2E(t *testing.T) {

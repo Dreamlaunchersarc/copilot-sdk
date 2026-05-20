@@ -2,6 +2,8 @@ package rpc
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -44,6 +46,22 @@ func TestGeneratedRPCAPIShape(t *testing.T) {
 	assertInterfaceType(t, file, "UIElicitationFieldValue")
 	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "UIElicitationStringArrayValue").Type, "[]string")
 	assertStructFieldType(t, file, fileSet, "UIElicitationResponse", "Content", "map[string]UIElicitationFieldValue")
+}
+
+func TestGeneratedSessionRPCRejectsMissingRequiredParams(t *testing.T) {
+	_, err := NewSessionRpc(nil, "session-1").Commands.Invoke(context.Background(), nil)
+	if err == nil || err.Error() != "params is required" {
+		t.Fatalf("expected params required error, got %v", err)
+	}
+}
+
+func TestGeneratedSessionRPCRunsActiveCheckBeforeRequest(t *testing.T) {
+	inactive := errors.New("session inactive")
+	_, err := NewSessionRpc(nil, "session-1", func() error { return inactive }).
+		Commands.Invoke(context.Background(), &CommandsInvokeRequest{Name: "help"})
+	if !errors.Is(err, inactive) {
+		t.Fatalf("expected active-check error, got %v", err)
+	}
 }
 
 func parseGeneratedRPC(t *testing.T) (*ast.File, *token.FileSet) {
