@@ -231,9 +231,7 @@ class TestSessionLifecycle:
             raise RuntimeError("boom")
 
         with pytest.raises(RuntimeError, match="boom"):
-            await client.resume_session(
-                "session-1", create_session_fs_handler=failing_handler
-            )
+            await client.resume_session("session-1", create_session_fs_handler=failing_handler)
 
         session = captured["session"]
         assert session.session_id not in client._sessions
@@ -302,9 +300,7 @@ class TestSessionLifecycle:
             return object()
 
         with pytest.raises(RuntimeError, match="already active"):
-            await client.resume_session(
-                "session-1", create_session_fs_handler=create_provider
-            )
+            await client.resume_session("session-1", create_session_fs_handler=create_provider)
 
         session = captured["session"]
         assert client._sessions["session-1"] is existing
