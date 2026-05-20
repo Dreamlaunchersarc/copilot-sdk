@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
+import { createServerRpc } from "../src/generated/rpc.js";
 import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
@@ -172,6 +173,21 @@ describe("CopilotClient", () => {
 
         await expect((session.rpc.commands.invoke as any)()).rejects.toThrow("params is required");
         expect(connection.sendRequest).not.toHaveBeenCalled();
+    });
+
+    it("allows generated RPC params with only optional fields to be omitted", async () => {
+        const connection = {
+            sendRequest: vi.fn(async (method: string) =>
+                method === "models.list" ? { models: [] } : { tools: [] }
+            ),
+        } as any;
+        const rpc = createServerRpc(connection);
+
+        await rpc.models.list();
+        await rpc.tools.list();
+
+        expect(connection.sendRequest).toHaveBeenCalledWith("models.list", {});
+        expect(connection.sendRequest).toHaveBeenCalledWith("tools.list", {});
     });
 
     it("forwards clientName in session.resume request", async () => {

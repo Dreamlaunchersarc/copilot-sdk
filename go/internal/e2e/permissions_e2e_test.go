@@ -228,7 +228,7 @@ func TestPermissionsE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("should accept explicit deny handler when joining an active session", func(t *testing.T) {
+	t.Run("should accept user-not-available handler when joining an active session", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{

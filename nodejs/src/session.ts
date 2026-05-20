@@ -502,8 +502,14 @@ export class CopilotSession {
             } else {
                 result = JSON.stringify(rawResult);
             }
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
+            if (this.disconnected) {
+                return;
+            }
             const message = error instanceof Error ? error.message : String(error);
             try {
                 await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
@@ -531,8 +537,14 @@ export class CopilotSession {
             if (result.kind === "no-result") {
                 return;
             }
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
         } catch (_error) {
+            if (this.disconnected) {
+                return;
+            }
             try {
                 await this.rpc.permissions.handlePendingPermissionRequest({
                     requestId,
@@ -576,8 +588,14 @@ export class CopilotSession {
 
         try {
             await handler({ sessionId: this.sessionId, command, commandName, args });
+            if (this.disconnected) {
+                return;
+            }
             await this.rpc.commands.handlePendingCommand({ requestId });
         } catch (error) {
+            if (this.disconnected) {
+                return;
+            }
             const message = error instanceof Error ? error.message : String(error);
             try {
                 await this.rpc.commands.handlePendingCommand({ requestId, error: message });

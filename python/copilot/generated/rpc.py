@@ -8325,12 +8325,9 @@ class ServerModelsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def list(self, params: ModelsListRequest, *, timeout: float | None = None) -> ModelList:
+    async def list(self, params: ModelsListRequest | None = None, *, timeout: float | None = None) -> ModelList:
         "Lists Copilot models available to the authenticated user.\n\nArgs:\n    params: Optional GitHub token used to list models for a specific user instead of the global auth context.\n\nReturns:\n    List of Copilot models available to the resolved user, including capabilities and billing metadata."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list", params_dict, **_timeout_kwargs(timeout))))
 
 
@@ -8338,12 +8335,9 @@ class ServerToolsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def list(self, params: ToolsListRequest, *, timeout: float | None = None) -> ToolList:
+    async def list(self, params: ToolsListRequest | None = None, *, timeout: float | None = None) -> ToolList:
         "Lists built-in tools available for a model.\n\nArgs:\n    params: Optional model identifier whose tool overrides should be applied to the listing.\n\nReturns:\n    Built-in tools available for the requested model, with their parameters and instructions."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return ToolList.from_dict(await self._client.request("tools.list", params_dict, **_timeout_kwargs(timeout)))
 
 
@@ -8351,12 +8345,9 @@ class ServerAccountApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def get_quota(self, params: AccountGetQuotaRequest, *, timeout: float | None = None) -> AccountGetQuotaResult:
+    async def get_quota(self, params: AccountGetQuotaRequest | None = None, *, timeout: float | None = None) -> AccountGetQuotaResult:
         "Gets Copilot quota usage for the authenticated user or supplied GitHub token.\n\nArgs:\n    params: Optional GitHub token used to look up quota for a specific user instead of the global auth context.\n\nReturns:\n    Quota usage snapshots for the resolved user, keyed by quota type."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", params_dict, **_timeout_kwargs(timeout)))
 
 
@@ -8414,12 +8405,9 @@ class ServerMcpApi:
         self._client = client
         self.config = ServerMcpConfigApi(client)
 
-    async def discover(self, params: MCPDiscoverRequest, *, timeout: float | None = None) -> MCPDiscoverResult:
+    async def discover(self, params: MCPDiscoverRequest | None = None, *, timeout: float | None = None) -> MCPDiscoverResult:
         "Discovers MCP servers from user, workspace, plugin, and builtin sources.\n\nArgs:\n    params: Optional working directory used as context for MCP server discovery.\n\nReturns:\n    MCP servers discovered from user, workspace, plugin, and built-in sources."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return MCPDiscoverResult.from_dict(await self._client.request("mcp.discover", params_dict, **_timeout_kwargs(timeout)))
 
 
@@ -8441,12 +8429,9 @@ class ServerSkillsApi:
         self._client = client
         self.config = ServerSkillsConfigApi(client)
 
-    async def discover(self, params: SkillsDiscoverRequest, *, timeout: float | None = None) -> ServerSkillList:
+    async def discover(self, params: SkillsDiscoverRequest | None = None, *, timeout: float | None = None) -> ServerSkillList:
         "Discovers skills across global and project sources.\n\nArgs:\n    params: Optional project paths and additional skill directories to include in discovery.\n\nReturns:\n    Skills discovered across global and project sources."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return ServerSkillList.from_dict(await self._client.request("skills.discover", params_dict, **_timeout_kwargs(timeout)))
 
 
@@ -8468,20 +8453,14 @@ class ServerSessionsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def fork(self, params: SessionsForkRequest, *, timeout: float | None = None) -> SessionsForkResult:
+    async def fork(self, params: SessionsForkRequest | None = None, *, timeout: float | None = None) -> SessionsForkResult:
         "Creates a new session by forking persisted history from an existing session.\n\nArgs:\n    params: Source session identifier to fork from, optional event-ID boundary, and optional friendly name for the new session.\n\nReturns:\n    Identifier and optional friendly name assigned to the newly forked session."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return SessionsForkResult.from_dict(await self._client.request("sessions.fork", params_dict, **_timeout_kwargs(timeout)))
 
-    async def connect(self, params: ConnectRemoteSessionParams, *, timeout: float | None = None) -> RemoteSessionConnectionResult:
+    async def connect(self, params: ConnectRemoteSessionParams | None = None, *, timeout: float | None = None) -> RemoteSessionConnectionResult:
         "Connects to an existing remote session and exposes it as an SDK session.\n\nArgs:\n    params: Remote session connection parameters.\n\nReturns:\n    Remote session connection result."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return RemoteSessionConnectionResult.from_dict(await self._client.request("sessions.connect", params_dict, **_timeout_kwargs(timeout)))
 
 
@@ -8497,12 +8476,9 @@ class ServerRpc:
         self.session_fs = ServerSessionFsApi(client)
         self.sessions = ServerSessionsApi(client)
 
-    async def ping(self, params: PingRequest, *, timeout: float | None = None) -> PingResult:
+    async def ping(self, params: PingRequest | None = None, *, timeout: float | None = None) -> PingResult:
         "Checks server responsiveness and returns protocol information.\n\nArgs:\n    params: Optional message to echo back to the caller.\n\nReturns:\n    Server liveness response, including the echoed message, current timestamp, and protocol version."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return PingResult.from_dict(await self._client.request("ping", params_dict, **_timeout_kwargs(timeout)))
 
 
@@ -8511,12 +8487,9 @@ class _InternalServerRpc:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def connect(self, params: ConnectRequest, *, timeout: float | None = None) -> ConnectResult:
+    async def connect(self, params: ConnectRequest | None = None, *, timeout: float | None = None) -> ConnectResult:
         "Performs the SDK server connection handshake and validates the optional connection token.\n\nArgs:\n    params: Optional connection token presented by the SDK client during the handshake.\n\nReturns:\n    Handshake result reporting the server's protocol version and package version on success.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
-        if params is None:
-            raise TypeError("params is required")
-
-        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         return ConnectResult.from_dict(await self._client.request("connect", params_dict, **_timeout_kwargs(timeout)))
 
 
@@ -8705,14 +8678,12 @@ class FleetApi:
         self._session_id = session_id
         self._assert_active = assert_active
 
-    async def start(self, params: FleetStartRequest, *, timeout: float | None = None) -> FleetStartResult:
+    async def start(self, params: FleetStartRequest | None = None, *, timeout: float | None = None) -> FleetStartResult:
         "Starts fleet mode by submitting the fleet orchestration prompt to the session.\n\nArgs:\n    params: Optional user prompt to combine with the fleet orchestration instructions.\n\nReturns:\n    Indicates whether fleet mode was successfully activated."
         if self._assert_active is not None:
             self._assert_active()
-        if params is None:
-            raise TypeError("params is required")
 
-        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         params_dict["sessionId"] = self._session_id
         return FleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict, **_timeout_kwargs(timeout)))
 
@@ -9210,14 +9181,12 @@ class RemoteApi:
         self._session_id = session_id
         self._assert_active = assert_active
 
-    async def enable(self, params: RemoteEnableRequest, *, timeout: float | None = None) -> RemoteEnableResult:
+    async def enable(self, params: RemoteEnableRequest | None = None, *, timeout: float | None = None) -> RemoteEnableResult:
         "Enables remote session export or steering.\n\nArgs:\n    params: Optional remote session mode (\"off\", \"export\", or \"on\"); defaults to enabling both export and remote steering.\n\nReturns:\n    GitHub URL for the session and a flag indicating whether remote steering is enabled."
         if self._assert_active is not None:
             self._assert_active()
-        if params is None:
-            raise TypeError("params is required")
 
-        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None} if params is not None else {}
         params_dict["sessionId"] = self._session_id
         return RemoteEnableResult.from_dict(await self._client.request("session.remote.enable", params_dict, **_timeout_kwargs(timeout)))
 

@@ -82,7 +82,8 @@ type Session struct {
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
 	eventCh   chan SessionEvent
-	closeOnce sync.Once // guards eventCh close so Disconnect is safe to call more than once
+	eventMu   sync.RWMutex // coordinates sends with closing eventCh
+	closeOnce sync.Once    // guards eventCh close so Disconnect is safe to call more than once
 	stateMu   sync.Mutex
 	closed    bool
 	closing   chan struct{}
@@ -948,14 +949,17 @@ func fromRPCContent(value rpc.UIElicitationFieldValue) any {
 func (s *Session) dispatchEvent(event SessionEvent) {
 	go s.handleBroadcastEvent(event)
 
-	// Send to the event channel in a closure with a recover guard.
-	// Disconnect closes eventCh, and in Go sending on a closed channel
-	// panics — there is no non-panicking send primitive. We only want
-	// to suppress that specific panic; other panics are not expected here.
-	func() {
-		defer func() { recover() }()
-		s.eventCh <- event
-	}()
+	s.eventMu.RLock()
+	defer s.eventMu.RUnlock()
+
+	s.stateMu.Lock()
+	closed := s.closed
+	s.stateMu.Unlock()
+	if closed {
+		return
+	}
+
+	s.eventCh <- event
 }
 
 // processEvents is the single consumer goroutine for the event channel.
@@ -1273,7 +1277,9 @@ func (s *Session) markDisconnected() {
 	s.closed = true
 	s.stateMu.Unlock()
 
+	s.eventMu.Lock()
 	s.closeOnce.Do(func() { close(s.eventCh) })
+	s.eventMu.Unlock()
 
 	s.handlerMutex.Lock()
 	s.handlers = nil

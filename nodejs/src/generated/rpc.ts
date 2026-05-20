@@ -4219,11 +4219,8 @@ export function createServerRpc(connection: MessageConnection) {
          *
          * @returns Server liveness response, including the echoed message, current timestamp, and protocol version.
          */
-        ping: async (params: PingRequest): Promise<PingResult> => {
-            if (params == null) {
-                throw new TypeError("params is required");
-            }
-            return connection.sendRequest("ping", params);
+        ping: async (params?: PingRequest): Promise<PingResult> => {
+            return connection.sendRequest("ping", (params ?? {}));
         },
         models: {
             /**
@@ -4233,11 +4230,8 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @returns List of Copilot models available to the resolved user, including capabilities and billing metadata.
              */
-            list: async (params: ModelsListRequest): Promise<ModelList> => {
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
-                return connection.sendRequest("models.list", params);
+            list: async (params?: ModelsListRequest): Promise<ModelList> => {
+                return connection.sendRequest("models.list", (params ?? {}));
             },
         },
         tools: {
@@ -4248,11 +4242,8 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @returns Built-in tools available for the requested model, with their parameters and instructions.
              */
-            list: async (params: ToolsListRequest): Promise<ToolList> => {
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
-                return connection.sendRequest("tools.list", params);
+            list: async (params?: ToolsListRequest): Promise<ToolList> => {
+                return connection.sendRequest("tools.list", (params ?? {}));
             },
         },
         account: {
@@ -4263,11 +4254,8 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @returns Quota usage snapshots for the resolved user, keyed by quota type.
              */
-            getQuota: async (params: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> => {
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
-                return connection.sendRequest("account.getQuota", params);
+            getQuota: async (params?: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> => {
+                return connection.sendRequest("account.getQuota", (params ?? {}));
             },
         },
         mcp: {
@@ -4343,11 +4331,8 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @returns MCP servers discovered from user, workspace, plugin, and built-in sources.
              */
-            discover: async (params: McpDiscoverRequest): Promise<McpDiscoverResult> => {
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
-                return connection.sendRequest("mcp.discover", params);
+            discover: async (params?: McpDiscoverRequest): Promise<McpDiscoverResult> => {
+                return connection.sendRequest("mcp.discover", (params ?? {}));
             },
         },
         skills: {
@@ -4371,11 +4356,8 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @returns Skills discovered across global and project sources.
              */
-            discover: async (params: SkillsDiscoverRequest): Promise<ServerSkillList> => {
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
-                return connection.sendRequest("skills.discover", params);
+            discover: async (params?: SkillsDiscoverRequest): Promise<ServerSkillList> => {
+                return connection.sendRequest("skills.discover", (params ?? {}));
             },
         },
         sessionFs: {
@@ -4402,11 +4384,8 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @returns Identifier and optional friendly name assigned to the newly forked session.
              */
-            fork: async (params: SessionsForkRequest): Promise<SessionsForkResult> => {
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
-                return connection.sendRequest("sessions.fork", params);
+            fork: async (params?: SessionsForkRequest): Promise<SessionsForkResult> => {
+                return connection.sendRequest("sessions.fork", (params ?? {}));
             },
             /**
              * Connects to an existing remote session and exposes it as an SDK session.
@@ -4415,11 +4394,8 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @returns Remote session connection result.
              */
-            connect: async (params: ConnectRemoteSessionParams): Promise<RemoteSessionConnectionResult> => {
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
-                return connection.sendRequest("sessions.connect", params);
+            connect: async (params?: ConnectRemoteSessionParams): Promise<RemoteSessionConnectionResult> => {
+                return connection.sendRequest("sessions.connect", (params ?? {}));
             },
         },
     };
@@ -4439,11 +4415,8 @@ export function createInternalServerRpc(connection: MessageConnection) {
          *
          * @returns Handshake result reporting the server's protocol version and package version on success.
          */
-        connect: async (params: ConnectRequest): Promise<ConnectResult> => {
-            if (params == null) {
-                throw new TypeError("params is required");
-            }
-            return connection.sendRequest("connect", params);
+        connect: async (params?: ConnectRequest): Promise<ConnectResult> => {
+            return connection.sendRequest("connect", (params ?? {}));
         },
     };
 }
@@ -4636,11 +4609,8 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              *
              * @returns Indicates whether fleet mode was successfully activated.
              */
-            start: async (params: FleetStartRequest): Promise<FleetStartResult> => {
+            start: async (params?: FleetStartRequest): Promise<FleetStartResult> => {
                 assertActive?.();
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
                 return connection.sendRequest("session.fleet.start", { sessionId, ...params });
             },
         },
@@ -5168,11 +5138,8 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              *
              * @returns GitHub URL for the session and a flag indicating whether remote steering is enabled.
              */
-            enable: async (params: RemoteEnableRequest): Promise<RemoteEnableResult> => {
+            enable: async (params?: RemoteEnableRequest): Promise<RemoteEnableResult> => {
                 assertActive?.();
-                if (params == null) {
-                    throw new TypeError("params is required");
-                }
                 return connection.sendRequest("session.remote.enable", { sessionId, ...params });
             },
             /**

@@ -49,6 +49,7 @@ describe("MCP Servers and Custom Agents", async () => {
             const session1 = await client.createSession({ onPermissionRequest: approveAll });
             const sessionId = session1.sessionId;
             await session1.sendAndWait({ prompt: "What is 1+1?" });
+            await session1.disconnect();
 
             // Resume with MCP servers
             const mcpServers: Record<string, MCPServerConfig> = {
@@ -160,6 +161,7 @@ describe("MCP Servers and Custom Agents", async () => {
             const session1 = await client.createSession({ onPermissionRequest: approveAll });
             const sessionId = session1.sessionId;
             await session1.sendAndWait({ prompt: "What is 1+1?" });
+            await session1.disconnect();
 
             // Resume with custom agents
             const customAgents: CustomAgentConfig[] = [
@@ -338,6 +340,7 @@ describe("MCP Servers and Custom Agents", async () => {
             const session1 = await client.createSession({ onPermissionRequest: approveAll });
             const sessionId = session1.sessionId;
             await session1.sendAndWait({ prompt: "What is 3+3?" });
+            await session1.disconnect();
 
             const secretTool = defineTool("secret_tool", {
                 description: "A secret tool hidden from the default agent",

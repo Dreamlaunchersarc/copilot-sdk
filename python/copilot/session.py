@@ -1134,6 +1134,8 @@ class CopilotSession:
             client: The internal client connection to the Copilot CLI.
             workspace_path: Path to the session workspace directory
                 (when infinite sessions enabled).
+            on_disconnected: Internal-only callback invoked when the owning
+                client should unregister this disconnected session.
         """
         self.session_id = session_id
         self._client = client

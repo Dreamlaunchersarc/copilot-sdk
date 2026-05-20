@@ -162,6 +162,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
             // First message without skill - marker should not appear
             const message1 = await session1.sendAndWait({ prompt: "Say hi." });
             expect(message1?.data.content).not.toContain(SKILL_MARKER);
+            await session1.disconnect();
 
             // Resume with skillDirectories - skill should now be active
             const session2 = await client.resumeSession(sessionId, {

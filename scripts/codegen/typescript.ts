@@ -709,9 +709,11 @@ function emitGroup(
             const paramEntries = effectiveParams?.properties
                 ? Object.entries(effectiveParams.properties).filter(([k]) => k !== "sessionId")
                 : [];
+            const requiredParams = new Set(effectiveParams?.required ?? []);
             const hasParams = hasSchemaPayload(effectiveParams);
             const hasNonSessionParams = paramEntries.length > 0;
-            const paramsOptional = isParamsOptional(value);
+            const hasRequiredNonSessionParams = paramEntries.some(([name]) => requiredParams.has(name));
+            const paramsOptional = isParamsOptional(value) || !hasRequiredNonSessionParams;
 
             const sigParams: string[] = [];
             let bodyArg: string;
@@ -730,7 +732,7 @@ function emitGroup(
                 if (hasParams) {
                     const optMark = paramsOptional ? "?" : "";
                     sigParams.push(`params${optMark}: ${paramsType}`);
-                    bodyArg = "params";
+                    bodyArg = paramsOptional ? "(params ?? {})" : "params";
                 } else {
                     bodyArg = "{}";
                 }

@@ -31,7 +31,7 @@ describe("Sessions", async () => {
         ]);
 
         await session.disconnect();
-        await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
+        await expect(() => session.getMessages()).rejects.toThrow(/Session has been disconnected/);
     });
 
     // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
@@ -253,7 +253,7 @@ describe("Sessions", async () => {
         // All can be disconnected
         await Promise.all([s1.disconnect(), s2.disconnect(), s3.disconnect()]);
         for (const s of [s1, s2, s3]) {
-            await expect(() => s.getMessages()).rejects.toThrow(/Session not found/);
+            await expect(() => s.getMessages()).rejects.toThrow(/Session has been disconnected/);
         }
     });
 
@@ -263,6 +263,7 @@ describe("Sessions", async () => {
         const sessionId = session1.sessionId;
         const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
         expect(answer?.data.content).toContain("2");
+        await session1.disconnect();
 
         // Resume using the same client
         const session2 = await client.resumeSession(sessionId, { onPermissionRequest: approveAll });
@@ -353,6 +354,7 @@ describe("Sessions", async () => {
     it("should resume session with a custom provider", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session.sessionId;
+        await session.disconnect();
 
         // Resume the session with a provider
         const session2 = await client.resumeSession(sessionId, {

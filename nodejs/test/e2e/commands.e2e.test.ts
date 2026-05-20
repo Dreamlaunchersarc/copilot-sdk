@@ -83,6 +83,7 @@ describe("Commands", async () => {
     it("session with commands resumes successfully", async () => {
         const session1 = await client1.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
+        await session1.disconnect();
 
         const session2 = await client1.resumeSession(sessionId, {
             onPermissionRequest: approveAll,

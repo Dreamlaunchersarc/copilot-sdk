@@ -118,6 +118,7 @@ describe("Permission callbacks", async () => {
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
         await session1.sendAndWait({ prompt: "What is 1+1?" });
+        await session1.disconnect();
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: () => ({
@@ -182,6 +183,7 @@ describe("Permission callbacks", async () => {
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
         await session1.sendAndWait({ prompt: "What is 1+1?" });
+        await session1.disconnect();
 
         // Resume with permission handler
         const session2 = await client.resumeSession(sessionId, {

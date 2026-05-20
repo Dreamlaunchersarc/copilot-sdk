@@ -2610,9 +2610,11 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     const effectiveParams = getMethodParamsSchema(method);
     const paramProps = effectiveParams?.properties || {};
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
+    const requiredParams = new Set(effectiveParams?.required || []);
     const hasParams = isSession ? nonSessionParams.length > 0 : hasSchemaPayload(effectiveParams);
     const paramsType = resolveType(pythonParamsTypeName(method));
-    const paramsOptional = isParamsOptional(method);
+    const hasRequiredNonSessionParams = nonSessionParams.some((name) => requiredParams.has(name));
+    const paramsOptional = isParamsOptional(method) || !hasRequiredNonSessionParams;
 
     // Build signature with typed params + optional timeout
     const sig = hasParams
