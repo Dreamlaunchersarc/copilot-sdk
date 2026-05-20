@@ -139,6 +139,11 @@ def read_file(work_dir: str, filename: str) -> str:
         return f.read()
 
 
+def mark_inactive_for_resume(session: CopilotSession) -> None:
+    """Clear local active-session tracking without destroying the server session."""
+    session._mark_disconnected()
+
+
 async def get_next_event_of_type(session: CopilotSession, event_type: str, timeout: float = 30.0):
     """
     Wait for and return the next event of a specific type from a session.

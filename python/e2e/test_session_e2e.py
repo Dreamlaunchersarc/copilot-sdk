@@ -11,7 +11,12 @@ from copilot.generated.session_events import SessionModelChangeData
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolResult
 
-from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
+from .testharness import (
+    E2ETestContext,
+    get_final_assistant_message,
+    get_next_event_of_type,
+    mark_inactive_for_resume,
+)
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -31,7 +36,7 @@ class TestSessions:
 
         await session.disconnect()
 
-        with pytest.raises(Exception, match="Session not found"):
+        with pytest.raises(Exception, match="Session has been disconnected"):
             await session.get_messages()
 
     async def test_should_have_stateful_conversation(self, ctx: E2ETestContext):
@@ -216,6 +221,7 @@ class TestSessions:
         assert "2" in answer.data.content
 
         # Resume using the same client
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id, on_permission_request=PermissionHandler.approve_all
         )
@@ -457,6 +463,7 @@ class TestSessions:
         session_id = session.session_id
 
         # Resume the session with a provider
+        mark_inactive_for_resume(session)
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,

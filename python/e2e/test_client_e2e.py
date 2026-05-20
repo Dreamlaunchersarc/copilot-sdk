@@ -13,7 +13,7 @@ from copilot.client import (
 )
 from copilot.session import PermissionHandler
 
-from .testharness import CLI_PATH
+from .testharness import CLI_PATH, mark_inactive_for_resume
 
 
 class TestClient:
@@ -270,6 +270,7 @@ class TestClient:
         try:
             await client.start()
             session = await client.create_session()
+            mark_inactive_for_resume(session)
             resumed = await client.resume_session(session.session_id)
 
             assert resumed.session_id == session.session_id

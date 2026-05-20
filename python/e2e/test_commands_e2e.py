@@ -20,6 +20,7 @@ from copilot.client import ExternalServerConfig, SubprocessConfig
 from copilot.session import CommandDefinition, PermissionHandler
 
 from .testharness.context import SNAPSHOTS_DIR, get_cli_path_for_tests
+from .testharness.helper import mark_inactive_for_resume
 from .testharness.proxy import CapiProxy
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -258,6 +259,7 @@ class TestCommandsLifecycle:
         )
         session_id = session1.session_id
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,

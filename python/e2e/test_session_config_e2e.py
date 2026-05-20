@@ -9,7 +9,7 @@ import pytest
 from copilot import ModelCapabilitiesOverride, ModelSupportsOverride
 from copilot.session import PermissionHandler
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, mark_inactive_for_resume
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -217,6 +217,7 @@ class TestSessionConfig:
         )
         session_id = session1.session_id
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,
@@ -314,6 +315,7 @@ class TestSessionConfig:
         )
         session_id = session1.session_id
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,
@@ -335,6 +337,7 @@ class TestSessionConfig:
         session_id = session1.session_id
 
         resume_instruction = "End the response with RESUME_SYSTEM_MESSAGE_SENTINEL."
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,
@@ -394,6 +397,7 @@ class TestSessionConfig:
             working_directory=project_dir,
         )
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session1.session_id,
             on_permission_request=PermissionHandler.approve_all,
@@ -416,6 +420,7 @@ class TestSessionConfig:
         )
         session_id = session1.session_id
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,

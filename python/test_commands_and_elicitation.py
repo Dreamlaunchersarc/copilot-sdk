@@ -107,6 +107,7 @@ class TestCommands:
 
             client._client.request = mock_request
 
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
@@ -525,6 +526,7 @@ class TestOnElicitationContext:
 
             client._client.request = mock_request
 
+            session._mark_disconnected()
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,

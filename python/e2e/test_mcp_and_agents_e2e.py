@@ -8,7 +8,7 @@ import pytest
 
 from copilot.session import CustomAgentConfig, MCPServerConfig, PermissionHandler
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext, get_final_assistant_message, mark_inactive_for_resume
 
 TEST_MCP_SERVER = str(
     (Path(__file__).parents[2] / "test" / "harness" / "test-mcp-server.mjs").resolve()
@@ -64,6 +64,7 @@ class TestMCPServers:
             }
         }
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,
@@ -157,6 +158,7 @@ class TestCustomAgents:
             }
         ]
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id,
             on_permission_request=PermissionHandler.approve_all,

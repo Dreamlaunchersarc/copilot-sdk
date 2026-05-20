@@ -13,7 +13,7 @@ from copilot.generated.session_events import (
 )
 from copilot.session import PermissionHandler, PermissionRequestResult
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, mark_inactive_for_resume
 from .testharness.helper import read_file, write_file
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -140,6 +140,7 @@ class TestPermissions:
         def deny_all(request, invocation):
             return PermissionRequestResult()
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(session_id, on_permission_request=deny_all)
 
         denied_events = []
@@ -218,6 +219,7 @@ class TestPermissions:
             permission_requests.append(request)
             return PermissionRequestResult(kind="approve-once")
 
+        mark_inactive_for_resume(session1)
         session2 = await ctx.client.resume_session(
             session_id, on_permission_request=on_permission_request
         )
