@@ -647,6 +647,57 @@ function toSnakeCase(s: string): string {
         .toLowerCase();
 }
 
+function stripDurationMillisecondsSuffix(name: string): string {
+    if (name.length > 2 && name.endsWith("Ms") && /[a-z]/.test(name.charAt(name.length - 3))) {
+        return name.slice(0, -2);
+    }
+    return name;
+}
+
+function isPyDurationProperty(propSchema: JSONSchema7, ctx: PyCodegenCtx): boolean {
+    if (propSchema.$ref && typeof propSchema.$ref === "string") {
+        const resolved = resolveSchema(propSchema, ctx.definitions);
+        if (resolved && resolved !== propSchema) {
+            return isPyDurationProperty(resolved, ctx);
+        }
+    }
+
+    if (propSchema.allOf && propSchema.allOf.length === 1 && typeof propSchema.allOf[0] === "object") {
+        return isPyDurationProperty(propSchema.allOf[0] as JSONSchema7, ctx);
+    }
+
+    if (propSchema.anyOf) {
+        const variants = (propSchema.anyOf as JSONSchema7[])
+            .filter((item) => typeof item === "object")
+            .map(
+                (item) =>
+                    resolveSchema(item as JSONSchema7, ctx.definitions) ??
+                    (item as JSONSchema7)
+            );
+        const nonNull = variants.filter((item) => !isPyNullLikeSchema(item));
+        return nonNull.length === 1 && isPyDurationProperty(nonNull[0], ctx);
+    }
+
+    if (propSchema.format !== "duration") {
+        return false;
+    }
+
+    const type = propSchema.type;
+    if (type === "number" || type === "integer") {
+        return true;
+    }
+    if (Array.isArray(type)) {
+        const nonNullTypes = type.filter((value) => value !== "null");
+        return nonNullTypes.length === 1 && (nonNullTypes[0] === "number" || nonNullTypes[0] === "integer");
+    }
+
+    return false;
+}
+
+function toPyFieldName(propName: string, propSchema: JSONSchema7, ctx: PyCodegenCtx): string {
+    return toSnakeCase(isPyDurationProperty(propSchema, ctx) ? stripDurationMillisecondsSuffix(propName) : propName);
+}
+
 function toPascalCase(s: string): string {
     return s
         .split(/[._]/)
@@ -918,22 +969,6 @@ function isPyBase64StringSchema(schema: JSONSchema7): boolean {
     return schema.format === "byte" || (schema as Record<string, unknown>).contentEncoding === "base64";
 }
 
-function toPythonLiteral(value: unknown): string | undefined {
-    if (typeof value === "string") {
-        return JSON.stringify(value);
-    }
-    if (typeof value === "number") {
-        return Number.isFinite(value) ? String(value) : undefined;
-    }
-    if (typeof value === "boolean") {
-        return value ? "True" : "False";
-    }
-    if (value === null) {
-        return "None";
-    }
-    return undefined;
-}
-
 function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
     const definitionCollections = collectDefinitionCollections(schema as Record<string, unknown>);
     return getSessionEventVariantSchemas(schema, definitionCollections)
@@ -968,7 +1003,7 @@ function getPySharedEventEnvelopeProperties(schema: JSONSchema7, ctx: PyCodegenC
             return {
                 ...property,
                 jsonName: name,
-                fieldName: toSnakeCase(name),
+                fieldName: toPyFieldName(name, schema, ctx),
                 required,
                 hasDefault: !required || resolved.annotation.includes(" | None"),
                 resolved,
@@ -1489,12 +1524,9 @@ function emitPyClass(
         const resolved = resolvePyPropertyType(propSchema, typeName, propName, isRequired, ctx);
         return {
             jsonName: propName,
-            fieldName: toSnakeCase(propName),
+            fieldName: toPyFieldName(propName, propSchema, ctx),
             isRequired,
             resolved,
-            defaultLiteral: isRequired ? undefined : toPythonLiteral(
-                propSchema.default ?? resolveSchema(propSchema, ctx.definitions)?.default
-            ),
         };
     });
 
@@ -1536,9 +1568,7 @@ function emitPyClass(
     lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
     lines.push(`        assert isinstance(obj, dict)`);
     for (const field of fieldInfos) {
-        const sourceExpr = field.defaultLiteral
-            ? `obj.get(${JSON.stringify(field.jsonName)}, ${field.defaultLiteral})`
-            : `obj.get(${JSON.stringify(field.jsonName)})`;
+        const sourceExpr = `obj.get(${JSON.stringify(field.jsonName)})`;
         lines.push(
             `        ${field.fieldName} = ${field.resolved.fromExpr(sourceExpr)}`
         );
@@ -1652,12 +1682,9 @@ function emitPyFlatDiscriminatedUnion(
 
         return {
             jsonName: propName,
-            fieldName: toSnakeCase(propName),
+            fieldName: toPyFieldName(propName, propSchema, ctx),
             isRequired: requiredInAll,
             resolved,
-            defaultLiteral: requiredInAll ? undefined : toPythonLiteral(
-                propSchema.default ?? resolveSchema(propSchema, ctx.definitions)?.default
-            ),
         };
     });
 
@@ -1683,9 +1710,7 @@ function emitPyFlatDiscriminatedUnion(
     lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
     lines.push(`        assert isinstance(obj, dict)`);
     for (const field of fieldInfos) {
-        const sourceExpr = field.defaultLiteral
-            ? `obj.get(${JSON.stringify(field.jsonName)}, ${field.defaultLiteral})`
-            : `obj.get(${JSON.stringify(field.jsonName)})`;
+        const sourceExpr = `obj.get(${JSON.stringify(field.jsonName)})`;
         lines.push(
             `        ${field.fieldName} = ${field.resolved.fromExpr(sourceExpr)}`
         );
