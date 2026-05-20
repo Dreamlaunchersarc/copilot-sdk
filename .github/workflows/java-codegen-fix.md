@@ -50,7 +50,7 @@ You are an automation agent that fixes Java compilation and test failures caused
 
 ## Context
 
-A Dependabot PR bumped the `@github/copilot` npm dependency in `java/scripts/codegen/package.json`. The `codegen-check` workflow ran the code generator (`java/scripts/codegen/java.ts`) against the new schemas and `mvn verify` subsequently failed. Your job is to fix **both** the code generator script (if needed) and the handwritten SDK/test source code so the build passes.
+A Dependabot PR bumped the `@github/copilot` npm dependency in `java/scripts/codegen/package.json`. The `java-codegen-check` workflow ran the code generator (`java/scripts/codegen/java.ts`) against the new schemas and `mvn verify` subsequently failed. Your job is to fix **both** the code generator script (if needed) and the handwritten SDK/test source code so the build passes.
 
 **❌❌❌ YOU MUST NEVER EDIT any of the java source code in `java/src/generated/` directly.** ✅✅Rather, the way to affect changes in these files is to change the code generator script and re-generate the classes in `java/src/generated`.
 
