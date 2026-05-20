@@ -130,3 +130,7 @@ export function getNextEventOfType(
         });
     });
 }
+
+export function markInactiveForResume(session: CopilotSession): void {
+    session._markDisconnected();
+}

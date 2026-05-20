@@ -6166,6 +6166,9 @@ type ServerSessionsApi serverApi
 //
 // Returns: Map of sessionId -> bytes freed by removing the session's workspace directory.
 func (a *ServerSessionsApi) BulkDelete(ctx context.Context, params *SessionsBulkDeleteRequest) (*SessionBulkDeleteResult, error) {
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	raw, err := a.client.Request("sessions.bulkDelete", params)
 	if err != nil {
 		return nil, err
@@ -6186,6 +6189,9 @@ func (a *ServerSessionsApi) BulkDelete(ctx context.Context, params *SessionsBulk
 //
 // Returns: Session IDs from the input set that are currently in use by another process.
 func (a *ServerSessionsApi) CheckInUse(ctx context.Context, params *SessionsCheckInUseRequest) (*SessionsCheckInUseResult, error) {
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	raw, err := a.client.Request("sessions.checkInUse", params)
 	if err != nil {
 		return nil, err
@@ -6248,6 +6254,9 @@ func (a *ServerSessionsApi) Connect(ctx context.Context, params *ConnectRemoteSe
 // Returns: The same metadata records, with summary and context fields backfilled where
 // available.
 func (a *ServerSessionsApi) EnrichMetadata(ctx context.Context, params *SessionsEnrichMetadataRequest) (*SessionEnrichMetadataResult, error) {
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	raw, err := a.client.Request("sessions.enrichMetadata", params)
 	if err != nil {
 		return nil, err
@@ -6268,6 +6277,9 @@ func (a *ServerSessionsApi) EnrichMetadata(ctx context.Context, params *Sessions
 //
 // Returns: Session ID matching the prefix, omitted when no unique match exists.
 func (a *ServerSessionsApi) FindByPrefix(ctx context.Context, params *SessionsFindByPrefixRequest) (*SessionsFindByPrefixResult, error) {
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	raw, err := a.client.Request("sessions.findByPrefix", params)
 	if err != nil {
 		return nil, err
@@ -6287,6 +6299,9 @@ func (a *ServerSessionsApi) FindByPrefix(ctx context.Context, params *SessionsFi
 //
 // Returns: ID of the local session bound to the given GitHub task, or omitted when none.
 func (a *ServerSessionsApi) FindByTaskId(ctx context.Context, params *SessionsFindByTaskIDRequest) (*SessionsFindByTaskIDResult, error) {
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	raw, err := a.client.Request("sessions.findByTaskId", params)
 	if err != nil {
 		return nil, err
@@ -6447,6 +6462,9 @@ func (a *ServerSessionsApi) LoadDeferredRepoHooks(ctx context.Context, params *S
 // Returns: Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs,
 // total bytes freed, and the dry-run flag.
 func (a *ServerSessionsApi) PruneOld(ctx context.Context, params *SessionsPruneOldRequest) (*SessionPruneResult, error) {
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	raw, err := a.client.Request("sessions.pruneOld", params)
 	if err != nil {
 		return nil, err
@@ -6532,6 +6550,9 @@ func (a *ServerSessionsApi) Save(ctx context.Context, params *SessionsSaveReques
 // subsequent hook reloads see the new set; already-running sessions keep their existing
 // hook installation until the next reload.
 func (a *ServerSessionsApi) SetAdditionalPlugins(ctx context.Context, params *SessionsSetAdditionalPluginsRequest) (*SessionsSetAdditionalPluginsResult, error) {
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	raw, err := a.client.Request("sessions.setAdditionalPlugins", params)
 	if err != nil {
 		return nil, err
@@ -6867,6 +6888,11 @@ func (a *AuthApi) GetStatus(ctx context.Context) (*SessionAuthStatus, error) {
 //
 // Returns: Indicates whether the credential update succeeded.
 func (a *AuthApi) SetCredentials(ctx context.Context, params *SessionSetCredentialsParams) (*SessionSetCredentialsResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Credentials != nil {
@@ -6894,6 +6920,14 @@ type CommandsApi sessionApi
 //
 // Returns: Indicates whether the command was accepted into the local execution queue.
 func (a *CommandsApi) Enqueue(ctx context.Context, params *EnqueueCommandParams) (*EnqueueCommandResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["command"] = params.Command
@@ -6917,6 +6951,14 @@ func (a *CommandsApi) Enqueue(ctx context.Context, params *EnqueueCommandParams)
 //
 // Returns: Error message produced while executing the command, if any.
 func (a *CommandsApi) Execute(ctx context.Context, params *ExecuteCommandParams) (*ExecuteCommandResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["args"] = params.Args
@@ -7090,6 +7132,11 @@ type EventLogApi sessionApi
 // Returns: Batch of session events returned by a read, with cursor and continuation
 // metadata.
 func (a *EventLogApi) Read(ctx context.Context, params *EventLogReadRequest) (*EventsReadResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.AgentScope != nil {
@@ -7127,6 +7174,14 @@ func (a *EventLogApi) Read(ctx context.Context, params *EventLogReadRequest) (*E
 //
 // Returns: Opaque handle representing an event-type interest registration.
 func (a *EventLogApi) RegisterInterest(ctx context.Context, params *RegisterEventInterestParams) (*RegisterEventInterestResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["eventType"] = params.EventType
@@ -7150,6 +7205,14 @@ func (a *EventLogApi) RegisterInterest(ctx context.Context, params *RegisterEven
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *EventLogApi) ReleaseInterest(ctx context.Context, params *ReleaseEventInterestParams) (*EventLogReleaseInterestResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["handle"] = params.Handle
@@ -7174,6 +7237,11 @@ func (a *EventLogApi) ReleaseInterest(ctx context.Context, params *ReleaseEventI
 // through the entire persisted history (which would happen if `read` were called without a
 // cursor on a long-lived session).
 func (a *EventLogApi) Tail(ctx context.Context) (*EventLogTailResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.eventLog.tail", req)
 	if err != nil {
@@ -7333,6 +7401,11 @@ type HistoryApi sessionApi
 //
 // Returns: Indicates whether an in-progress manual compaction was aborted.
 func (a *HistoryApi) AbortManualCompaction(ctx context.Context) (*HistoryAbortManualCompactionResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.abortManualCompaction", req)
 	if err != nil {
@@ -7352,6 +7425,11 @@ func (a *HistoryApi) AbortManualCompaction(ctx context.Context) (*HistoryAbortMa
 //
 // Returns: Indicates whether an in-progress background compaction was cancelled.
 func (a *HistoryApi) CancelBackgroundCompaction(ctx context.Context) (*HistoryCancelBackgroundCompactionResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.cancelBackgroundCompaction", req)
 	if err != nil {
@@ -7395,6 +7473,11 @@ func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error)
 //
 // Returns: Markdown summary of the conversation context (empty when not available).
 func (a *HistoryApi) SummarizeForHandoff(ctx context.Context) (*HistorySummarizeForHandoffResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.summarizeForHandoff", req)
 	if err != nil {
@@ -7473,6 +7556,11 @@ type LspApi sessionApi
 //
 // Parameters: Parameters for (re)loading the merged LSP configuration set.
 func (a *LspApi) Initialize(ctx context.Context, params *LspInitializeRequest) (*SessionLspInitializeResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Force != nil {
@@ -7508,6 +7596,14 @@ type McpApi sessionApi
 // Returns: Indicates whether an in-flight sampling execution with the given requestId was
 // found and cancelled.
 func (a *McpApi) CancelSamplingExecution(ctx context.Context, params *McpCancelSamplingExecutionParams) (*McpCancelSamplingExecutionResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -7591,6 +7687,14 @@ func (a *McpApi) Enable(ctx context.Context, params *McpEnableRequest) (*Session
 // Returns: Outcome of an MCP sampling execution: success result, failure error, or
 // cancellation.
 func (a *McpApi) ExecuteSampling(ctx context.Context, params *McpExecuteSamplingParams) (*McpSamplingExecutionResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["mcpRequestId"] = params.McpRequestID
@@ -7660,6 +7764,11 @@ func (a *McpApi) Reload(ctx context.Context) (*SessionMcpReloadResult, error) {
 // Returns: Indicates whether the auto-managed `github` MCP server was removed (false when
 // nothing to remove).
 func (a *McpApi) RemoveGitHub(ctx context.Context) (*McpRemoveGitHubResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.removeGitHub", req)
 	if err != nil {
@@ -7682,6 +7791,14 @@ func (a *McpApi) RemoveGitHub(ctx context.Context) (*McpRemoveGitHubResult, erro
 //
 // Returns: Env-value mode recorded on the session after the update.
 func (a *McpApi) SetEnvValueMode(ctx context.Context, params *McpSetEnvValueModeParams) (*McpSetEnvValueModeResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["mode"] = params.Mode
@@ -7760,6 +7877,14 @@ type MetadataApi sessionApi
 // Returns: Token breakdown for the session's current context window, or null if
 // uninitialized.
 func (a *MetadataApi) ContextInfo(ctx context.Context, params *MetadataContextInfoRequest) (*MetadataContextInfoResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["outputTokenLimit"] = params.OutputTokenLimit
@@ -7787,6 +7912,11 @@ func (a *MetadataApi) ContextInfo(ctx context.Context, params *MetadataContextIn
 // Returns: Indicates whether the local session is currently processing a turn or background
 // continuation.
 func (a *MetadataApi) IsProcessing(ctx context.Context) (*MetadataIsProcessingResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.metadata.isProcessing", req)
 	if err != nil {
@@ -7811,6 +7941,14 @@ func (a *MetadataApi) IsProcessing(ctx context.Context) (*MetadataIsProcessingRe
 // resume, before the next agent turn fires `session.context_info_changed` events. Returns
 // zeros for an empty session.
 func (a *MetadataApi) RecomputeContextTokens(ctx context.Context, params *MetadataRecomputeContextTokensRequest) (*MetadataRecomputeContextTokensResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["modelId"] = params.ModelID
@@ -7838,6 +7976,14 @@ func (a *MetadataApi) RecomputeContextTokens(ctx context.Context, params *Metada
 // UI) can react. Use this when the host has detected a cwd/branch/repo change outside the
 // session's normal lifecycle (e.g., after a shell command in interactive mode).
 func (a *MetadataApi) RecordContextChange(ctx context.Context, params *MetadataRecordContextChangeRequest) (*MetadataRecordContextChangeResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["context"] = params.Context
@@ -7864,6 +8010,14 @@ func (a *MetadataApi) RecordContextChange(ctx context.Context, params *MetadataR
 // `process.chdir` and any related side-effects (file index, etc.); this method only updates
 // the session's own recorded path.
 func (a *MetadataApi) SetWorkingDirectory(ctx context.Context, params *MetadataSetWorkingDirectoryRequest) (*MetadataSetWorkingDirectoryResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
@@ -7886,6 +8040,11 @@ func (a *MetadataApi) SetWorkingDirectory(ctx context.Context, params *MetadataS
 //
 // Returns: Point-in-time snapshot of slow-changing session identifier and state fields
 func (a *MetadataApi) Snapshot(ctx context.Context) (*SessionMetadataSnapshot, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.metadata.snapshot", req)
 	if err != nil {
@@ -7988,6 +8147,14 @@ func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 // `switchTo` instead when you also need to change the model. The runtime stores the effort
 // on the session and applies it to subsequent turns.
 func (a *ModelApi) SetReasoningEffort(ctx context.Context, params *ModelSetReasoningEffortRequest) (*ModelSetReasoningEffortResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["reasoningEffort"] = params.ReasoningEffort
@@ -8108,6 +8275,14 @@ func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*SessionName
 //
 // Returns: Indicates whether the auto-generated summary was applied as the session's name.
 func (a *NameApi) SetAuto(ctx context.Context, params *NameSetAutoRequest) (*NameSetAutoResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["summary"] = params.Summary
@@ -8134,6 +8309,11 @@ type OptionsApi sessionApi
 //
 // Returns: Indicates whether the session options patch was applied successfully.
 func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsParams) (*SessionUpdateOptionsResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.AdditionalContentExclusionPolicies != nil {
@@ -8268,6 +8448,11 @@ type PermissionsApi sessionApi
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsApi) Configure(ctx context.Context, params *PermissionsConfigureParams) (*PermissionsConfigureResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.AdditionalContentExclusionPolicies != nil {
@@ -8343,6 +8528,14 @@ func (a *PermissionsApi) HandlePendingPermissionRequest(ctx context.Context, par
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsApi) ModifyRules(ctx context.Context, params *PermissionsModifyRulesParams) (*PermissionsModifyRulesResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Add != nil {
@@ -8377,6 +8570,14 @@ func (a *PermissionsApi) ModifyRules(ctx context.Context, params *PermissionsMod
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsApi) NotifyPromptShown(ctx context.Context, params *PermissionPromptShownNotification) (*PermissionsNotifyPromptShownResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["message"] = params.Message
@@ -8399,6 +8600,11 @@ func (a *PermissionsApi) NotifyPromptShown(ctx context.Context, params *Permissi
 //
 // Returns: List of pending permission requests reconstructed from event history.
 func (a *PermissionsApi) PendingRequests(ctx context.Context) (*PendingPermissionRequestList, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.permissions.pendingRequests", req)
 	if err != nil {
@@ -8479,6 +8685,14 @@ func (a *PermissionsApi) SetApproveAll(ctx context.Context, params *PermissionsS
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsApi) SetRequired(ctx context.Context, params *PermissionsSetRequiredRequest) (*PermissionsSetRequiredResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["required"] = params.Required
@@ -8504,6 +8718,14 @@ type PermissionsPathsApi sessionApi
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsPathsApi) Add(ctx context.Context, params *PermissionPathsAddParams) (*PermissionsPathsAddResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -8528,6 +8750,14 @@ func (a *PermissionsPathsApi) Add(ctx context.Context, params *PermissionPathsAd
 //
 // Returns: Indicates whether the supplied path is within the session's allowed directories.
 func (a *PermissionsPathsApi) IsPathWithinAllowedDirectories(ctx context.Context, params *PermissionPathsAllowedCheckParams) (*PermissionPathsAllowedCheckResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -8552,6 +8782,14 @@ func (a *PermissionsPathsApi) IsPathWithinAllowedDirectories(ctx context.Context
 //
 // Returns: Indicates whether the supplied path is within the session's workspace directory.
 func (a *PermissionsPathsApi) IsPathWithinWorkspace(ctx context.Context, params *PermissionPathsWorkspaceCheckParams) (*PermissionPathsWorkspaceCheckResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -8573,6 +8811,11 @@ func (a *PermissionsPathsApi) IsPathWithinWorkspace(ctx context.Context, params 
 //
 // Returns: Snapshot of the session's allow-listed directories and primary working directory.
 func (a *PermissionsPathsApi) List(ctx context.Context) (*PermissionPathsList, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.permissions.paths.list", req)
 	if err != nil {
@@ -8594,6 +8837,14 @@ func (a *PermissionsPathsApi) List(ctx context.Context) (*PermissionPathsList, e
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsPathsApi) UpdatePrimary(ctx context.Context, params *PermissionPathsUpdatePrimaryParams) (*PermissionsPathsUpdatePrimaryResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -8624,6 +8875,14 @@ type PermissionsUrlsApi sessionApi
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsUrlsApi) SetUnrestrictedMode(ctx context.Context, params *PermissionUrlsSetUnrestrictedModeParams) (*PermissionsUrlsSetUnrestrictedModeResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["enabled"] = params.Enabled
@@ -8751,6 +9010,11 @@ type QueueApi sessionApi
 //
 // RPC method: session.queue.clear.
 func (a *QueueApi) Clear(ctx context.Context) (*SessionQueueClearResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.queue.clear", req)
 	if err != nil {
@@ -8770,6 +9034,11 @@ func (a *QueueApi) Clear(ctx context.Context) (*SessionQueueClearResult, error) 
 //
 // Returns: Snapshot of the session's pending queued items and immediate-steering messages.
 func (a *QueueApi) PendingItems(ctx context.Context) (*QueuePendingItemsResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.queue.pendingItems", req)
 	if err != nil {
@@ -8788,6 +9057,11 @@ func (a *QueueApi) PendingItems(ctx context.Context) (*QueuePendingItemsResult, 
 //
 // Returns: Indicates whether a user-facing pending item was removed.
 func (a *QueueApi) RemoveMostRecent(ctx context.Context) (*QueueRemoveMostRecentResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.queue.removeMostRecent", req)
 	if err != nil {
@@ -8868,6 +9142,14 @@ func (a *RemoteApi) Enable(ctx context.Context, params *RemoteEnableRequest) (*R
 // Used by the host (CLI / SDK consumer) when it has just finished enabling or disabling
 // steering on a remote exporter that the runtime does not directly own.
 func (a *RemoteApi) NotifySteerableChanged(ctx context.Context, params *RemoteNotifySteerableChangedRequest) (*RemoteNotifySteerableChangedResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["remoteSteerable"] = params.RemoteSteerable
@@ -8892,6 +9174,11 @@ type ScheduleApi sessionApi
 //
 // Returns: Snapshot of the currently active recurring prompts for this session.
 func (a *ScheduleApi) List(ctx context.Context) (*ScheduleList, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.schedule.list", req)
 	if err != nil {
@@ -8913,6 +9200,14 @@ func (a *ScheduleApi) List(ctx context.Context) (*ScheduleList, error) {
 // Returns: Remove a scheduled prompt by id. The result entry is omitted if the id was
 // unknown.
 func (a *ScheduleApi) Stop(ctx context.Context, params *ScheduleStopRequest) (*ScheduleStopResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -9070,6 +9365,11 @@ func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*S
 //
 // RPC method: session.skills.ensureLoaded.
 func (a *SkillsApi) EnsureLoaded(ctx context.Context) (*SessionSkillsEnsureLoadedResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.ensureLoaded", req)
 	if err != nil {
@@ -9089,6 +9389,11 @@ func (a *SkillsApi) EnsureLoaded(ctx context.Context) (*SessionSkillsEnsureLoade
 // Returns: Skills invoked during this session, ordered by invocation time (most recent
 // last).
 func (a *SkillsApi) GetInvoked(ctx context.Context) (*SkillsGetInvokedResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.getInvoked", req)
 	if err != nil {
@@ -9189,6 +9494,11 @@ func (a *TasksApi) Cancel(ctx context.Context, params *TasksCancelRequest) (*Tas
 //
 // Returns: The first sync-waiting task that can currently be promoted to background mode.
 func (a *TasksApi) GetCurrentPromotable(ctx context.Context) (*TasksGetCurrentPromotableResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.getCurrentPromotable", req)
 	if err != nil {
@@ -9209,6 +9519,14 @@ func (a *TasksApi) GetCurrentPromotable(ctx context.Context) (*TasksGetCurrentPr
 //
 // Returns: Progress information for the task, or null when no task with that ID is tracked.
 func (a *TasksApi) GetProgress(ctx context.Context, params *TasksGetProgressRequest) (*TasksGetProgressResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["id"] = params.ID
@@ -9255,6 +9573,11 @@ func (a *TasksApi) List(ctx context.Context) (*TaskList, error) {
 // Returns: The promoted task as it now exists in background mode, omitted if no promotable
 // task was waiting.
 func (a *TasksApi) PromoteCurrentToBackground(ctx context.Context) (*TasksPromoteCurrentToBackgroundResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.promoteCurrentToBackground", req)
 	if err != nil {
@@ -9306,6 +9629,11 @@ func (a *TasksApi) PromoteToBackground(ctx context.Context, params *TasksPromote
 // Returns: Refresh metadata for any detached background shells the runtime knows about. Use
 // after a long pause to pick up exit/output state for shells running outside the agent loop.
 func (a *TasksApi) Refresh(ctx context.Context) (*TasksRefreshResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.refresh", req)
 	if err != nil {
@@ -9436,6 +9764,11 @@ func (a *TasksApi) StartAgent(ctx context.Context, params *TasksStartAgentReques
 // drained or after an internal timeout (default 10 minutes; configurable via
 // COPILOT_TASK_WAIT_TIMEOUT_SECONDS).
 func (a *TasksApi) WaitForPending(ctx context.Context) (*TasksWaitForPendingResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tasks.waitForPending", req)
 	if err != nil {
@@ -9459,6 +9792,14 @@ type TelemetryApi sessionApi
 // Parameters: Feature override key/value pairs to attach to subsequent telemetry events
 // from this session.
 func (a *TelemetryApi) SetFeatureOverrides(ctx context.Context, params *TelemetrySetFeatureOverridesRequest) (*SessionTelemetrySetFeatureOverridesResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["features"] = params.Features
@@ -9524,6 +9865,11 @@ func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *HandlePend
 // Default base-class implementation is a no-op for sessions that don't support tool
 // validation.
 func (a *ToolsApi) InitializeAndValidate(ctx context.Context) (*ToolsInitializeAndValidateResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.tools.initializeAndValidate", req)
 	if err != nil {
@@ -9581,6 +9927,14 @@ func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
 func (a *UIApi) HandlePendingAutoModeSwitch(ctx context.Context, params *UIHandlePendingAutoModeSwitchRequest) (*UIHandlePendingResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -9641,6 +9995,14 @@ func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePe
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
 func (a *UIApi) HandlePendingExitPlanMode(ctx context.Context, params *UIHandlePendingExitPlanModeRequest) (*UIHandlePendingResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -9667,6 +10029,14 @@ func (a *UIApi) HandlePendingExitPlanMode(ctx context.Context, params *UIHandleP
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
 func (a *UIApi) HandlePendingSampling(ctx context.Context, params *UIHandlePendingSamplingRequest) (*UIHandlePendingResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -9694,6 +10064,14 @@ func (a *UIApi) HandlePendingSampling(ctx context.Context, params *UIHandlePendi
 //
 // Returns: Indicates whether the pending UI request was resolved by this call.
 func (a *UIApi) HandlePendingUserInput(ctx context.Context, params *UIHandlePendingUserInputRequest) (*UIHandlePendingResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -9720,6 +10098,11 @@ func (a *UIApi) HandlePendingUserInput(ctx context.Context, params *UIHandlePend
 // this registration solely tells the server bridge to skip its own dispatch (so a remote
 // client doesn't race the in-process handler for the same requestId).
 func (a *UIApi) RegisterDirectAutoModeSwitchHandler(ctx context.Context) (*UIRegisterDirectAutoModeSwitchHandlerResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.ui.registerDirectAutoModeSwitchHandler", req)
 	if err != nil {
@@ -9743,6 +10126,14 @@ func (a *UIApi) RegisterDirectAutoModeSwitchHandler(ctx context.Context) (*UIReg
 // Returns: Indicates whether the handle was active and the registration count was
 // decremented.
 func (a *UIApi) UnregisterDirectAutoModeSwitchHandler(ctx context.Context, params *UIUnregisterDirectAutoModeSwitchHandlerRequest) (*UIUnregisterDirectAutoModeSwitchHandlerResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["handle"] = params.Handle
@@ -9848,6 +10239,11 @@ func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspa
 // Returns: Workspace checkpoints in chronological order; empty when the workspace is not
 // enabled.
 func (a *WorkspacesApi) ListCheckpoints(ctx context.Context) (*WorkspacesListCheckpointsResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspaces.listCheckpoints", req)
 	if err != nil {
@@ -9892,6 +10288,14 @@ func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResu
 // Returns: Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace
 // is missing.
 func (a *WorkspacesApi) ReadCheckpoint(ctx context.Context, params *WorkspacesReadCheckpointRequest) (*WorkspacesReadCheckpointResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["number"] = params.Number
@@ -9946,6 +10350,14 @@ func (a *WorkspacesApi) ReadFile(ctx context.Context, params *WorkspacesReadFile
 //
 // Returns: Descriptor for the saved paste file, or null when the workspace is unavailable.
 func (a *WorkspacesApi) SaveLargePaste(ctx context.Context, params *WorkspacesSaveLargePasteRequest) (*WorkspacesSaveLargePasteResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["content"] = params.Content
@@ -10005,6 +10417,11 @@ type SessionRpc struct {
 //
 // Returns: Result of aborting the current turn
 func (a *SessionRpc) Abort(ctx context.Context, params *AbortRequest) (*AbortResult, error) {
+	if a.common.assertActive != nil {
+		if err := a.common.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
 		if params.Reason != nil {
@@ -10077,6 +10494,14 @@ func (a *SessionRpc) Log(ctx context.Context, params *LogRequest) (*LogResult, e
 //
 // Returns: Result of sending a user message
 func (a *SessionRpc) Send(ctx context.Context, params *SendRequest) (*SendResult, error) {
+	if a.common.assertActive != nil {
+		if err := a.common.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
 		if params.AgentMode != nil {
@@ -10136,6 +10561,11 @@ func (a *SessionRpc) Send(ctx context.Context, params *SendRequest) (*SendResult
 //
 // Parameters: Parameters for shutting down the session
 func (a *SessionRpc) Shutdown(ctx context.Context, params *ShutdownRequest) (*SessionShutdownResult, error) {
+	if a.common.assertActive != nil {
+		if err := a.common.assertActive(); err != nil {
+			return nil, err
+		}
+	}
 	req := map[string]any{"sessionId": a.common.sessionID}
 	if params != nil {
 		if params.Reason != nil {

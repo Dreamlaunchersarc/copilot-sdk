@@ -6,6 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { CopilotClient, approveAll } from "../../src/index.js";
 import type { SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { markInactiveForResume } from "./harness/sdkTestHelper.js";
 
 describe("Commands", async () => {
     // Use TCP mode so a second client can connect to the same CLI process
@@ -83,7 +84,7 @@ describe("Commands", async () => {
     it("session with commands resumes successfully", async () => {
         const session1 = await client1.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
-        await session1.disconnect();
+        markInactiveForResume(session1);
 
         const session2 = await client1.resumeSession(sessionId, {
             onPermissionRequest: approveAll,

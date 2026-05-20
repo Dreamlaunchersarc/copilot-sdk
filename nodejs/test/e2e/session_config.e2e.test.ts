@@ -3,6 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { markInactiveForResume } from "./harness/sdkTestHelper.js";
 
 describe("Session Configuration", async () => {
     const { copilotClient: client, workDir, openAiEndpoint } = await createSdkTestContext();
@@ -247,7 +248,7 @@ describe("Session Configuration", async () => {
             onPermissionRequest: approveAll,
             workingDirectory: projectDir,
         });
-        await session1.disconnect();
+        markInactiveForResume(session1);
         const session2 = await client.resumeSession(session1.sessionId, {
             onPermissionRequest: approveAll,
             workingDirectory: projectDir,
@@ -305,7 +306,7 @@ describe("Session Configuration", async () => {
     it("should forward custom provider headers on resume", async () => {
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
-        await session1.disconnect();
+        markInactiveForResume(session1);
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
@@ -386,7 +387,7 @@ describe("Session Configuration", async () => {
 
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
-        await session1.disconnect();
+        markInactiveForResume(session1);
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
@@ -404,7 +405,7 @@ describe("Session Configuration", async () => {
     it("should apply systemMessage on session resume", async () => {
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
-        await session1.disconnect();
+        markInactiveForResume(session1);
 
         const resumeInstruction = "End the response with RESUME_SYSTEM_MESSAGE_SENTINEL.";
         const session2 = await client.resumeSession(sessionId, {
@@ -426,7 +427,7 @@ describe("Session Configuration", async () => {
     it("should apply availableTools on session resume", async () => {
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
-        await session1.disconnect();
+        markInactiveForResume(session1);
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,

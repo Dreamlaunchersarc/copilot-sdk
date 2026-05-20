@@ -3,7 +3,11 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll, defineTool } from "../../src/index.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
+import {
+    getFinalAssistantMessage,
+    getNextEventOfType,
+    markInactiveForResume,
+} from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
     const {
@@ -354,7 +358,7 @@ describe("Sessions", async () => {
     it("should resume session with a custom provider", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session.sessionId;
-        await session.disconnect();
+        markInactiveForResume(session);
 
         // Resume the session with a provider
         const session2 = await client.resumeSession(sessionId, {
