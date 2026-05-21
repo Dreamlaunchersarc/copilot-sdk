@@ -144,7 +144,7 @@ describe("Suspend RPC", async () => {
 
         const session = await client.createSession({
             tools: [
-                defineTool({ name: "suspend_cancel_permission_tool",
+                defineTool("suspend_cancel_permission_tool", {
                     description:
                         "Transforms a value (should not run when suspend cancels permission)",
                     parameters: z.object({
@@ -195,7 +195,7 @@ describe("Suspend RPC", async () => {
 
         const session = await client.createSession({
             tools: [
-                defineTool({ name: "suspend_reject_external_tool",
+                defineTool("suspend_reject_external_tool", {
                     description: "Looks up a value externally",
                     parameters: z.object({
                         value: z.string().describe("Value to look up"),

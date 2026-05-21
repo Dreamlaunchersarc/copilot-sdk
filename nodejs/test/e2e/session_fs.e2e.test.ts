@@ -133,7 +133,7 @@ describe("Session Fs", async () => {
             onPermissionRequest: approveAll,
             createSessionFsProvider,
             tools: [
-                defineTool({ name: "get_big_string",
+                defineTool("get_big_string", {
                     description: "Returns a large string",
                     handler: async () => suppliedFileContent,
                 }),

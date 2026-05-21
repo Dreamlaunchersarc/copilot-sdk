@@ -333,7 +333,7 @@ describe("Permission callbacks", async () => {
 
         const session = await client.createSession({
             tools: [
-                defineTool({ name: "first_permission_tool",
+                defineTool("first_permission_tool", {
                     description: "First concurrent permission test tool",
                     parameters: z.object({}),
                     handler: async (): Promise<ToolResultObject> => {
@@ -345,7 +345,7 @@ describe("Permission callbacks", async () => {
                         };
                     },
                 }),
-                defineTool({ name: "second_permission_tool",
+                defineTool("second_permission_tool", {
                     description: "Second concurrent permission test tool",
                     parameters: z.object({}),
                     handler: async (): Promise<ToolResultObject> => {

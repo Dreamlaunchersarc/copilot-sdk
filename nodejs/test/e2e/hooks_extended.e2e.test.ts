@@ -235,7 +235,7 @@ describe("Extended session hooks", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool({ name: "echo_value",
+                defineTool("echo_value", {
                     description: "Echoes the supplied value",
                     parameters: z.object({ value: z.string() }),
                     handler: ({ value }) => value,

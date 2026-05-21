@@ -63,7 +63,7 @@ describe("Multi-client broadcast", async () => {
     }
 
     it("both clients see tool request and completion events", async () => {
-        const tool = defineTool({ name: "magic_number",
+        const tool = defineTool("magic_number", {
             description: "Returns a magic number",
             parameters: z.object({
                 seed: z.string().describe("A seed value"),
@@ -255,7 +255,7 @@ describe("Multi-client broadcast", async () => {
         "two clients register different tools and agent uses both",
         { timeout: 90_000 },
         async () => {
-            const toolA = defineTool({ name: "city_lookup",
+            const toolA = defineTool("city_lookup", {
                 description: "Returns a city name for a given country code",
                 parameters: z.object({
                     countryCode: z.string().describe("A two-letter country code"),
@@ -263,7 +263,7 @@ describe("Multi-client broadcast", async () => {
                 handler: ({ countryCode }) => `CITY_FOR_${countryCode}`,
             });
 
-            const toolB = defineTool({ name: "currency_lookup",
+            const toolB = defineTool("currency_lookup", {
                 description: "Returns a currency for a given country code",
                 parameters: z.object({
                     countryCode: z.string().describe("A two-letter country code"),
@@ -299,13 +299,13 @@ describe("Multi-client broadcast", async () => {
     );
 
     it("disconnecting client removes its tools", { timeout: 90_000 }, async () => {
-        const toolA = defineTool({ name: "stable_tool",
+        const toolA = defineTool("stable_tool", {
             description: "A tool that persists across disconnects",
             parameters: z.object({ input: z.string() }),
             handler: ({ input }) => `STABLE_${input}`,
         });
 
-        const toolB = defineTool({ name: "ephemeral_tool",
+        const toolB = defineTool("ephemeral_tool", {
             description: "A tool that will disappear when its client disconnects",
             parameters: z.object({ input: z.string() }),
             handler: ({ input }) => `EPHEMERAL_${input}`,

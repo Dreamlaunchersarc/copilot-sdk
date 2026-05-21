@@ -12,7 +12,7 @@ async function main() {
       model: "claude-haiku-4.5",
       onPermissionRequest: approveAll,
       tools: [
-        defineTool({ name: "grep",
+        defineTool("grep", {
           description: "A custom grep implementation that overrides the built-in",
           parameters: z.object({
             query: z.string().describe("Search query"),

@@ -29,7 +29,7 @@ describe("Custom tools", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool({ name: "encrypt_string",
+                defineTool("encrypt_string", {
                     description: "Encrypts a string",
                     parameters: z.object({
                         input: z.string().describe("String to encrypt"),
@@ -49,7 +49,7 @@ describe("Custom tools", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool({ name: "get_user_location",
+                defineTool("get_user_location", {
                     description: "Gets the user's location",
                     handler: () => {
                         throw new Error("Melbourne");
@@ -90,7 +90,7 @@ describe("Custom tools", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool({ name: "db_query",
+                defineTool("db_query", {
                     description: "Performs a database query",
                     parameters: z.object({
                         query: z.object({
@@ -134,7 +134,7 @@ describe("Custom tools", async () => {
 
         const session = await client.createSession({
             tools: [
-                defineTool({ name: "encrypt_string",
+                defineTool("encrypt_string", {
                     description: "Encrypts a string",
                     parameters: z.object({
                         input: z.string().describe("String to encrypt"),
@@ -167,7 +167,7 @@ describe("Custom tools", async () => {
                 return { kind: "no-result" };
             },
             tools: [
-                defineTool({ name: "safe_lookup",
+                defineTool("safe_lookup", {
                     description: "A safe lookup that skips permission",
                     parameters: z.object({
                         id: z.string().describe("ID to look up"),
@@ -189,7 +189,7 @@ describe("Custom tools", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool({ name: "grep",
+                defineTool("grep", {
                     description: "A custom grep implementation that overrides the built-in",
                     parameters: z.object({
                         query: z.string().describe("Search query"),
@@ -211,7 +211,7 @@ describe("Custom tools", async () => {
 
         const session = await client.createSession({
             tools: [
-                defineTool({ name: "encrypt_string",
+                defineTool("encrypt_string", {
                     description: "Encrypts a string",
                     parameters: z.object({
                         input: z.string().describe("String to encrypt"),
@@ -242,7 +242,7 @@ describe("Custom tools", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool({ name: "lookup_city",
+                defineTool("lookup_city", {
                     description: "Looks up city information",
                     parameters: z.object({ city: z.string() }),
                     handler: ({ city }) => {
@@ -250,7 +250,7 @@ describe("Custom tools", async () => {
                         return `CITY_${city.toUpperCase()}`;
                     },
                 }),
-                defineTool({ name: "lookup_country",
+                defineTool("lookup_country", {
                     description: "Looks up country information",
                     parameters: z.object({ country: z.string() }),
                     handler: ({ country }) => {
@@ -280,7 +280,7 @@ describe("Custom tools", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool({ name: "allowed_tool",
+                defineTool("allowed_tool", {
                     description: "A tool that is allowed",
                     parameters: z.object({ input: z.string() }),
                     handler: ({ input }) => {
@@ -288,7 +288,7 @@ describe("Custom tools", async () => {
                         return `ALLOWED_${input.toUpperCase()}`;
                     },
                 }),
-                defineTool({ name: "excluded_tool",
+                defineTool("excluded_tool", {
                     description: "A tool that should be excluded",
                     parameters: z.object({}),
                     handler: () => {

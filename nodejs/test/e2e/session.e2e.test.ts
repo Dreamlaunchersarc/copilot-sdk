@@ -196,7 +196,7 @@ describe("Sessions", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool({ name: "secret_tool",
+                defineTool("secret_tool", {
                     description: "A secret tool hidden from the default agent",
                     parameters: {
                         type: "object",
