@@ -1295,13 +1295,12 @@ export interface InfiniteSessionConfig {
  */
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
-export interface SessionConfig {
-    /**
-     * Optional custom session ID
-     * If not provided, server will generate one
-     */
-    sessionId?: string;
-
+/**
+ * Shared configuration fields used by both {@link SessionConfig} (for
+ * creating a new session) and {@link ResumeSessionConfig} (for resuming
+ * an existing one).
+ */
+export interface SessionConfigBase {
     /**
      * Client name to identify the application using the SDK.
      * Included in the User-Agent header for API requests.
@@ -1523,12 +1522,6 @@ export interface SessionConfig {
     remoteSession?: RemoteSessionMode;
 
     /**
-     * Creates a remote session in the cloud instead of a local session.
-     * The optional repository is associated with the cloud session.
-     */
-    cloud?: CloudSessionOptions;
-
-    /**
      * Optional event handler that is registered on the session before the
      * session.create RPC is issued. This guarantees that early events emitted
      * by the CLI during session creation (e.g. session.start) are delivered to
@@ -1547,45 +1540,26 @@ export interface SessionConfig {
 }
 
 /**
- * Configuration for resuming a session
+ * Configuration for creating a new session via {@link CopilotClient.createSession}.
  */
-export type ResumeSessionConfig = Pick<
-    SessionConfig,
-    | "clientName"
-    | "model"
-    | "tools"
-    | "commands"
-    | "systemMessage"
-    | "availableTools"
-    | "excludedTools"
-    | "provider"
-    | "enableSessionTelemetry"
-    | "modelCapabilities"
-    | "streaming"
-    | "includeSubAgentStreamingEvents"
-    | "reasoningEffort"
-    | "onPermissionRequest"
-    | "onUserInputRequest"
-    | "onElicitationRequest"
-    | "onExitPlanModeRequest"
-    | "onAutoModeSwitchRequest"
-    | "hooks"
-    | "workingDirectory"
-    | "configDir"
-    | "enableConfigDiscovery"
-    | "mcpServers"
-    | "customAgents"
-    | "defaultAgent"
-    | "agent"
-    | "skillDirectories"
-    | "instructionDirectories"
-    | "disabledSkills"
-    | "infiniteSessions"
-    | "gitHubToken"
-    | "remoteSession"
-    | "onEvent"
-    | "createSessionFsProvider"
-> & {
+export interface SessionConfig extends SessionConfigBase {
+    /**
+     * Optional custom session ID. If not provided, the server generates one.
+     */
+    sessionId?: string;
+
+    /**
+     * Creates a remote session in the cloud instead of a local session.
+     * The optional repository is associated with the cloud session.
+     */
+    cloud?: CloudSessionOptions;
+}
+
+/**
+ * Configuration for resuming an existing session via
+ * {@link CopilotClient.resumeSession}.
+ */
+export interface ResumeSessionConfig extends SessionConfigBase {
     /**
      * When true, skips emitting the session.resume event.
      * Useful for reconnecting to a session without triggering resume-related side effects.
@@ -1604,7 +1578,7 @@ export type ResumeSessionConfig = Pick<
      * @default false
      */
     continuePendingWork?: boolean;
-};
+}
 
 /**
  * Configuration for a custom API provider.

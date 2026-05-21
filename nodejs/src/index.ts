@@ -78,6 +78,7 @@ export type {
     SectionTransformFn,
     SessionCapabilities,
     SessionConfig,
+    SessionConfigBase,
     SessionEvent,
     SessionEventHandler,
     SessionEventPayload,
