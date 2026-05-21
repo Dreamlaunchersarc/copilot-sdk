@@ -793,16 +793,25 @@ export type SystemMessageConfig =
     | SystemMessageCustomizeConfig;
 
 /**
- * Permission request types from the server
+ * Permission request types from the server. This is the generated
+ * discriminated union from the runtime schema — switch on `kind` to
+ * access the variant-specific fields (e.g. shell `commands`, write
+ * `fileName`/`diff`, mcp `toolName`/`args`).
  */
-export interface PermissionRequest {
-    kind: "shell" | "write" | "mcp" | "read" | "url" | "custom-tool" | "memory" | "hook";
-    toolCallId?: string;
-}
+export type { PermissionRequest } from "./generated/session-events.js";
+import type { PermissionRequest } from "./generated/session-events.js";
 
 import type { PermissionDecisionRequest } from "./generated/rpc.js";
 
-export type PermissionRequestResult = PermissionDecisionRequest["result"] | { kind: "no-result" };
+/**
+ * Permission decision result returned from a {@link PermissionHandler}.
+ * The discriminated `kind` field selects the decision; `feedback` is
+ * optional free-form text forwarded to the model along with the decision.
+ */
+export type PermissionRequestResult = (
+    | PermissionDecisionRequest["result"]
+    | { kind: "no-result" }
+) & { feedback?: string };
 
 export type PermissionHandler = (
     request: PermissionRequest,
