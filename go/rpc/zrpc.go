@@ -9650,6 +9650,14 @@ type PermissionsFolderTrustApi sessionApi
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsFolderTrustApi) AddTrusted(ctx context.Context, params *FolderTrustAddParams) (*PermissionsFolderTrustAddTrustedResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -9673,6 +9681,14 @@ func (a *PermissionsFolderTrustApi) AddTrusted(ctx context.Context, params *Fold
 //
 // Returns: Folder trust check result.
 func (a *PermissionsFolderTrustApi) IsTrusted(ctx context.Context, params *FolderTrustCheckParams) (*FolderTrustCheckResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -9706,6 +9722,14 @@ type PermissionsLocationsApi sessionApi
 //
 // Returns: Indicates whether the operation succeeded.
 func (a *PermissionsLocationsApi) AddToolApproval(ctx context.Context, params *PermissionLocationAddToolApprovalParams) (*PermissionsLocationsAddToolApprovalResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["approval"] = params.Approval
@@ -9731,6 +9755,14 @@ func (a *PermissionsLocationsApi) AddToolApproval(ctx context.Context, params *P
 //
 // Returns: Summary of persisted location permissions applied to the session.
 func (a *PermissionsLocationsApi) Apply(ctx context.Context, params *PermissionLocationApplyParams) (*PermissionLocationApplyResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
@@ -9754,6 +9786,14 @@ func (a *PermissionsLocationsApi) Apply(ctx context.Context, params *PermissionL
 //
 // Returns: Resolved location-permissions key and type.
 func (a *PermissionsLocationsApi) Resolve(ctx context.Context, params *PermissionLocationResolveParams) (*PermissionLocationResolveResult, error) {
+	if a.assertActive != nil {
+		if err := a.assertActive(); err != nil {
+			return nil, err
+		}
+	}
+	if params == nil {
+		return nil, errors.New("params is required")
+	}
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["workingDirectory"] = params.WorkingDirectory
