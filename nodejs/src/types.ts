@@ -410,18 +410,19 @@ export interface Tool<TArgs = unknown> {
 /**
  * Helper to define a tool with Zod schema and get type inference for the handler.
  * Without this helper, TypeScript cannot infer handler argument types from Zod schemas.
+ *
+ * @example
+ * ```typescript
+ * const weatherTool = defineTool({
+ *     name: "get_weather",
+ *     description: "Get weather for a location",
+ *     parameters: z.object({ location: z.string() }),
+ *     handler: ({ location }) => fetchWeather(location),
+ * });
+ * ```
  */
-export function defineTool<T = unknown>(
-    name: string,
-    config: {
-        description?: string;
-        parameters?: ZodSchema<T> | Record<string, unknown>;
-        handler?: ToolHandler<T>;
-        overridesBuiltInTool?: boolean;
-        skipPermission?: boolean;
-    }
-): Tool<T> {
-    return { name, ...config };
+export function defineTool<T = unknown>(tool: Tool<T>): Tool<T> {
+    return tool;
 }
 
 // ============================================================================

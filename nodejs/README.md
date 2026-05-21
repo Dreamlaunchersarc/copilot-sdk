@@ -437,7 +437,7 @@ import { CopilotClient, defineTool } from "@github/copilot-sdk";
 const session = await client.createSession({
     model: "gpt-5",
     tools: [
-        defineTool("lookup_issue", {
+        defineTool({ name: "lookup_issue",
             description: "Fetch issue details from our tracker",
             parameters: z.object({
                 id: z.string().describe("Issue identifier"),
@@ -458,7 +458,7 @@ When Copilot invokes `lookup_issue`, the client automatically runs your handler 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overridesBuiltInTool: true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
 
 ```ts
-defineTool("edit_file", {
+defineTool({ name: "edit_file",
     description: "Custom file editor with project-specific validation",
     parameters: z.object({ path: z.string(), content: z.string() }),
     overridesBuiltInTool: true,
@@ -473,7 +473,7 @@ defineTool("edit_file", {
 Set `skipPermission: true` on a tool definition to allow it to execute without triggering a permission prompt:
 
 ```ts
-defineTool("safe_lookup", {
+defineTool({ name: "safe_lookup",
     description: "A read-only lookup that needs no confirmation",
     parameters: z.object({ id: z.string() }),
     skipPermission: true,

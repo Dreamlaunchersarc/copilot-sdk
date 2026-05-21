@@ -30,7 +30,7 @@ describe("Tool Results", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool("get_weather", {
+                defineTool({ name: "get_weather",
                     description: "Gets weather for a city",
                     parameters: z.object({
                         city: z.string(),
@@ -57,7 +57,7 @@ describe("Tool Results", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool("check_status", {
+                defineTool({ name: "check_status",
                     description: "Checks the status of a service",
                     handler: (): ToolResultObject => ({
                         textResultForLlm: "Service unavailable",
@@ -82,7 +82,7 @@ describe("Tool Results", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool("calculate", {
+                defineTool({ name: "calculate",
                     description: "Calculates a math expression",
                     parameters: z.object({
                         operation: z.enum(["add", "subtract", "multiply"]),
@@ -118,7 +118,7 @@ describe("Tool Results", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool("analyze_code", {
+                defineTool({ name: "analyze_code",
                     description: "Analyzes code for issues",
                     parameters: z.object({
                         file: z.string(),
@@ -173,7 +173,7 @@ describe("Tool Results", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool("deploy_service", {
+                defineTool({ name: "deploy_service",
                     description: "Deploys a service",
                     parameters: z.object({}),
                     handler: (): ToolResultObject => {
@@ -217,7 +217,7 @@ describe("Tool Results", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool("access_secret", {
+                defineTool({ name: "access_secret",
                     description: "A tool that returns a denied result",
                     parameters: z.object({}),
                     handler: (): ToolResultObject => ({

@@ -12,7 +12,7 @@ const facts: Record<string, string> = {
     node: "Node.js lets you run JavaScript outside the browser using the V8 engine.",
 };
 
-const lookupFactTool = defineTool("lookup_fact", {
+const lookupFactTool = defineTool({ name: "lookup_fact",
     description: "Returns a fun fact about a given topic.",
     parameters: z.object({
         topic: z.string().describe("Topic to look up (e.g. 'javascript', 'node')"),

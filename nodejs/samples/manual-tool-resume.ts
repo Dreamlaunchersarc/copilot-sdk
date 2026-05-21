@@ -29,7 +29,7 @@ async function pause() {
     await new Promise((resolve) => setTimeout(resolve, 1000));
 }
 
-const tool = defineTool("manual_resume_status", {
+const tool = defineTool({ name: "manual_resume_status",
     description: "Looks up a status value. The SDK consumer supplies the result manually.",
     parameters: z.object({
         id: z.string().describe("Identifier to look up"),

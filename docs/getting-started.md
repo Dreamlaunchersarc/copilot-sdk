@@ -891,7 +891,7 @@ Update `index.ts`:
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
 
 // Define a tool that Copilot can call
-const getWeather = defineTool("get_weather", {
+const getWeather = defineTool({ name: "get_weather",
     description: "Get the current weather for a city",
     parameters: {
         type: "object",
@@ -1296,7 +1296,7 @@ Let's put it all together into a useful interactive assistant:
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
 import * as readline from "readline";
 
-const getWeather = defineTool("get_weather", {
+const getWeather = defineTool({ name: "get_weather",
     description: "Get the current weather for a city",
     parameters: {
         type: "object",

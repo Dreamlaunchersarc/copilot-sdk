@@ -319,7 +319,7 @@ describe("MCP Servers and Custom Agents", async () => {
 
     describe("Default Agent Tool Exclusion", () => {
         it("should hide excluded tools from default agent", async () => {
-            const secretTool = defineTool("secret_tool", {
+            const secretTool = defineTool({ name: "secret_tool",
                 description: "A secret tool hidden from the default agent",
                 parameters: z.object({
                     input: z.string().describe("Input to process"),
@@ -358,7 +358,7 @@ describe("MCP Servers and Custom Agents", async () => {
             const sessionId = session1.sessionId;
             await session1.sendAndWait({ prompt: "What is 3+3?" });
 
-            const secretTool = defineTool("secret_tool", {
+            const secretTool = defineTool({ name: "secret_tool",
                 description: "A secret tool hidden from the default agent",
                 parameters: z.object({
                     input: z.string().describe("Input to process"),

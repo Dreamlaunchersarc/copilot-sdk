@@ -178,7 +178,7 @@ describe("Pending work resume", async () => {
             const suspendedClient = createConnectingClient(cliUrl);
             const session1 = await suspendedClient.createSession({
                 tools: [
-                    defineTool("resume_permission_tool", {
+                    defineTool({ name: "resume_permission_tool",
                         description: "Transforms a value after permission is granted",
                         parameters: z.object({ value: z.string() }),
                         handler: ({ value }) => `ORIGINAL_SHOULD_NOT_RUN_${value}`,
@@ -213,7 +213,7 @@ describe("Pending work resume", async () => {
                     continuePendingWork: true,
                     onPermissionRequest: () => ({ kind: "no-result" }),
                     tools: [
-                        defineTool("resume_permission_tool", {
+                        defineTool({ name: "resume_permission_tool",
                             description: "Transforms a value after permission is granted",
                             parameters: z.object({ value: z.string() }),
                             handler: ({ value }) => {
@@ -263,7 +263,7 @@ describe("Pending work resume", async () => {
             const suspendedClient = createConnectingClient(cliUrl);
             const session1 = await suspendedClient.createSession({
                 tools: [
-                    defineTool("resume_external_tool", {
+                    defineTool({ name: "resume_external_tool",
                         description: "Looks up a value after resumption",
                         parameters: z.object({ value: z.string() }),
                         handler: async ({ value }) => {
@@ -341,7 +341,7 @@ describe("Pending work resume", async () => {
             const suspendedClient = createConnectingClient(cliUrl);
             const session1 = await suspendedClient.createSession({
                 tools: [
-                    defineTool("pending_lookup_a", {
+                    defineTool({ name: "pending_lookup_a",
                         description: "Looks up the first value after resumption",
                         parameters: z.object({ value: z.string() }),
                         handler: async ({ value }) => {
@@ -349,7 +349,7 @@ describe("Pending work resume", async () => {
                             return await releaseOriginalToolA.promise;
                         },
                     }),
-                    defineTool("pending_lookup_b", {
+                    defineTool({ name: "pending_lookup_b",
                         description: "Looks up the second value after resumption",
                         parameters: z.object({ value: z.string() }),
                         handler: async ({ value }) => {
@@ -470,7 +470,7 @@ describe("Pending work resume", async () => {
             const suspendedClient = createConnectingClient(cliUrl);
             const session1 = await suspendedClient.createSession({
                 tools: [
-                    defineTool("resume_external_tool", {
+                    defineTool({ name: "resume_external_tool",
                         description: "Looks up a value after resumption",
                         parameters: z.object({ value: z.string() }),
                         handler: async ({ value }) => {

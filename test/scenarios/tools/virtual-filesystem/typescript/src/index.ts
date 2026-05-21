@@ -4,7 +4,7 @@ import { z } from "zod";
 // In-memory virtual filesystem
 const virtualFs = new Map<string, string>();
 
-const createFile = defineTool("create_file", {
+const createFile = defineTool({ name: "create_file",
   description: "Create or overwrite a file at the given path with the provided content",
   parameters: z.object({
     path: z.string().describe("File path"),
@@ -16,7 +16,7 @@ const createFile = defineTool("create_file", {
   },
 });
 
-const readFile = defineTool("read_file", {
+const readFile = defineTool({ name: "read_file",
   description: "Read the contents of a file at the given path",
   parameters: z.object({
     path: z.string().describe("File path"),
@@ -28,7 +28,7 @@ const readFile = defineTool("read_file", {
   },
 });
 
-const listFiles = defineTool("list_files", {
+const listFiles = defineTool({ name: "list_files",
   description: "List all files in the virtual filesystem",
   parameters: z.object({}),
   handler: async () => {

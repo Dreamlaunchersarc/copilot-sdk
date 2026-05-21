@@ -358,11 +358,11 @@ The SDK now uses protocol version 3, where the runtime broadcasts `external_tool
 ```ts
 // Two clients each register different tools; the agent can use both
 const session1 = await client1.createSession({
-  tools: [defineTool("search", { handler: doSearch })],
+  tools: [defineTool({ name: "search", handler: doSearch })],
   onPermissionRequest: approveAll,
 });
 const session2 = await client2.resumeSession(session1.id, {
-  tools: [defineTool("analyze", { handler: doAnalyze })],
+  tools: [defineTool({ name: "analyze", handler: doAnalyze })],
   onPermissionRequest: approveAll,
 });
 ```
@@ -411,7 +411,7 @@ Applications can now override built-in tools such as `grep`, `edit_file`, or `re
 import { defineTool } from "@github/copilot-sdk";
 
 const session = await client.createSession({
-  tools: [defineTool("grep", {
+  tools: [defineTool({ name: "grep",
     overridesBuiltInTool: true,
     handler: async (params) => `CUSTOM_GREP_RESULT: ${params.query}`,
   })],

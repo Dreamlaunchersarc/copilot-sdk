@@ -81,7 +81,7 @@ describe("Abort", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             tools: [
-                defineTool("slow_analysis", {
+                defineTool({ name: "slow_analysis",
                     description: "A slow analysis tool that blocks until released",
                     parameters: z.object({
                         value: z.string().describe("Value to analyze"),
