@@ -102,7 +102,7 @@ describe("Extended session hooks", async () => {
                 onErrorOccurred: async (input, invocation) => {
                     errorInputs.push(input);
                     expect(invocation.sessionId).toBe(session.sessionId);
-                    expect(input.timestamp).toBeGreaterThan(0);
+                    expect(input.timestamp).toBeInstanceOf(Date);
                     expect(input.cwd).toBeDefined();
                     expect(input.error).toBeDefined();
                     expect(["model_call", "tool_execution", "system", "user_input"]).toContain(
