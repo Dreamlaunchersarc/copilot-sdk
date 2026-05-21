@@ -50,7 +50,7 @@ describe("Commands", async () => {
                 commands: [
                     { name: "deploy", description: "Deploy the app", handler: async () => {} },
                 ],
-                disableResume: true,
+                suppressResumeEvent: true,
             });
 
             // Rely on default vitest timeout

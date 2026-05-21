@@ -46,7 +46,6 @@ import type {
     GetAuthStatusResponse,
     GetStatusResponse,
     ModelInfo,
-    ProviderConfig,
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
@@ -68,17 +67,6 @@ import type {
     TypedSessionLifecycleHandler,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
-
-/**
- * Convert a {@link ProviderConfig} to its JSON-RPC wire shape, remapping
- * camelCase SDK property names to the wire keys expected by the runtime
- * (e.g. `maxInputTokens` → `maxPromptTokens`).
- */
-function toWireProviderConfig(provider: ProviderConfig): Record<string, unknown> {
-    const { maxInputTokens, ...rest } = provider;
-    if (maxInputTokens === undefined) return rest;
-    return { ...rest, maxPromptTokens: maxInputTokens };
-}
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -452,17 +440,17 @@ export class CopilotClient {
 
     private setupSessionFs(
         session: CopilotSession,
-        config: { createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider }
+        config: { createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider }
     ): void {
         if (!this.sessionFsConfig) {
             return;
         }
-        if (!config.createSessionFsHandler) {
+        if (!config.createSessionFsProvider) {
             throw new Error(
-                "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
+                "createSessionFsProvider is required in session config when sessionFs is enabled in client options."
             );
         }
-        const provider = config.createSessionFsHandler(session);
+        const provider = config.createSessionFsProvider(session);
         if (this.sessionFsConfig.capabilities?.sqlite && !provider.sqlite) {
             throw new Error(
                 "SessionFsConfig declares capabilities.sqlite but the provider does not implement sqlite."
@@ -772,11 +760,11 @@ export class CopilotClient {
         if (config.onElicitationRequest) {
             session.registerElicitationHandler(config.onElicitationRequest);
         }
-        if (config.onExitPlanMode) {
-            session.registerExitPlanModeHandler(config.onExitPlanMode);
+        if (config.onExitPlanModeRequest) {
+            session.registerExitPlanModeHandler(config.onExitPlanModeRequest);
         }
-        if (config.onAutoModeSwitch) {
-            session.registerAutoModeSwitchHandler(config.onAutoModeSwitch);
+        if (config.onAutoModeSwitchRequest) {
+            session.registerAutoModeSwitchHandler(config.onAutoModeSwitchRequest);
         }
         if (config.hooks) {
             session.registerHooks(config.hooks);
@@ -817,14 +805,14 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
-                provider: config.provider ? toWireProviderConfig(config.provider) : undefined,
+                provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
-                requestExitPlanMode: !!config.onExitPlanMode,
-                requestAutoModeSwitch: !!config.onAutoModeSwitch,
+                requestExitPlanMode: !!config.onExitPlanModeRequest,
+                requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
@@ -910,11 +898,11 @@ export class CopilotClient {
         if (config.onElicitationRequest) {
             session.registerElicitationHandler(config.onElicitationRequest);
         }
-        if (config.onExitPlanMode) {
-            session.registerExitPlanModeHandler(config.onExitPlanMode);
+        if (config.onExitPlanModeRequest) {
+            session.registerExitPlanModeHandler(config.onExitPlanModeRequest);
         }
-        if (config.onAutoModeSwitch) {
-            session.registerAutoModeSwitchHandler(config.onAutoModeSwitch);
+        if (config.onAutoModeSwitchRequest) {
+            session.registerAutoModeSwitchHandler(config.onAutoModeSwitchRequest);
         }
         if (config.hooks) {
             session.registerHooks(config.hooks);
@@ -956,14 +944,14 @@ export class CopilotClient {
                     name: cmd.name,
                     description: cmd.description,
                 })),
-                provider: config.provider ? toWireProviderConfig(config.provider) : undefined,
+                provider: config.provider,
                 modelCapabilities: config.modelCapabilities,
                 requestPermission:
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
-                requestExitPlanMode: !!config.onExitPlanMode,
-                requestAutoModeSwitch: !!config.onAutoModeSwitch,
+                requestExitPlanMode: !!config.onExitPlanModeRequest,
+                requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 configDir: config.configDir,
@@ -979,7 +967,7 @@ export class CopilotClient {
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
-                disableResume: config.disableResume,
+                suppressResumeEvent: config.suppressResumeEvent,
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,

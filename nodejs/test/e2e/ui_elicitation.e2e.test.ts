@@ -95,7 +95,7 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
             const session2 = await client2.resumeSession(session1.sessionId, {
                 onPermissionRequest: approveAll,
                 onElicitationRequest: async () => ({ action: "accept", content: {} }),
-                disableResume: true,
+                suppressResumeEvent: true,
             });
 
             const capEvent = await capChangedPromise;
@@ -147,7 +147,7 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
             await client3.resumeSession(session1.sessionId, {
                 onPermissionRequest: approveAll,
                 onElicitationRequest: async () => ({ action: "accept", content: {} }),
-                disableResume: true,
+                suppressResumeEvent: true,
             });
 
             await capEnabledPromise;

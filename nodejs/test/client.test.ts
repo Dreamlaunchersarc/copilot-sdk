@@ -276,7 +276,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer provider-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
-                maxInputTokens: 100_000,
+                maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
             },
         });
@@ -315,7 +315,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer resume-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
-                maxInputTokens: 100_000,
+                maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
             },
         });
@@ -488,8 +488,8 @@ describe("CopilotClient", () => {
 
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
-            onExitPlanMode: () => ({ approved: true }),
-            onAutoModeSwitch: () => "yes",
+            onExitPlanModeRequest: () => ({ approved: true }),
+            onAutoModeSwitchRequest: () => "yes",
         });
 
         expect(spy).toHaveBeenCalledWith(
@@ -1456,8 +1456,8 @@ describe("CopilotClient", () => {
 
             await client.createSession({
                 onPermissionRequest: approveAll,
-                onExitPlanMode: () => ({ approved: true }),
-                onAutoModeSwitch: () => "yes_always",
+                onExitPlanModeRequest: () => ({ approved: true }),
+                onAutoModeSwitchRequest: () => "yes_always",
             });
 
             const createCallWithHandlers = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
@@ -1489,7 +1489,7 @@ describe("CopilotClient", () => {
 
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
-                onExitPlanMode: (request, invocation) => {
+                onExitPlanModeRequest: (request, invocation) => {
                     expect(invocation.sessionId).toBeDefined();
                     expect(request.summary).toBe("Review the plan");
                     expect(request.planContent).toBe("Plan body");
@@ -1501,7 +1501,7 @@ describe("CopilotClient", () => {
                         feedback: "Looks good",
                     };
                 },
-                onAutoModeSwitch: (request, invocation) => {
+                onAutoModeSwitchRequest: (request, invocation) => {
                     expect(invocation.sessionId).toBeDefined();
                     expect(request.errorCode).toBe("user_weekly_rate_limited");
                     expect(request.retryAfterSeconds).toBe(3600);

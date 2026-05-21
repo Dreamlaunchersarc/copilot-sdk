@@ -277,7 +277,7 @@ unsubscribe();
 
 Abort the currently processing message in this session.
 
-##### `getMessages(): Promise<SessionEvent[]>`
+##### `getEvents(): Promise<SessionEvent[]>`
 
 Get all events/messages from this session.
 

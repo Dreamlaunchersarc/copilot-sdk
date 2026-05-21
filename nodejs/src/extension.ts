@@ -39,6 +39,6 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     return client.resumeSession(sessionId, {
         ...config,
         onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
-        disableResume: config.disableResume ?? true,
+        suppressResumeEvent: config.suppressResumeEvent ?? true,
     });
 }

@@ -34,7 +34,7 @@ describe("Session Fs", async () => {
     // Single provider for the describe block — session IDs are unique per test,
     // so no cross-contamination between tests.
     const provider = new MemoryProvider();
-    const createSessionFsHandler = (session: CopilotSession) =>
+    const createSessionFsProvider = (session: CopilotSession) =>
         createTestSessionFsHandler(session, provider);
 
     // Helpers to build session-namespaced paths for direct provider assertions
@@ -51,7 +51,7 @@ describe("Session Fs", async () => {
         async () => {
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
-                createSessionFsHandler,
+                createSessionFsProvider,
             });
 
             const errors: SessionEvent[] = [];
@@ -79,7 +79,7 @@ describe("Session Fs", async () => {
     it("should load session data from fs provider on resume", async () => {
         const session1 = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
         const sessionId = session1.sessionId;
 
@@ -92,7 +92,7 @@ describe("Session Fs", async () => {
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         // Send another message to verify the session is functional after resume
@@ -109,7 +109,7 @@ describe("Session Fs", async () => {
             env,
         });
         onTestFinished(() => client.forceStop());
-        await client.createSession({ onPermissionRequest: approveAll, createSessionFsHandler });
+        await client.createSession({ onPermissionRequest: approveAll, createSessionFsProvider });
 
         const { actualPort: port } = client as unknown as { actualPort: number };
 
@@ -131,7 +131,7 @@ describe("Session Fs", async () => {
         const suppliedFileContent = "x".repeat(100_000);
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
             tools: [
                 defineTool("get_big_string", {
                     description: "Returns a large string",
@@ -145,7 +145,7 @@ describe("Session Fs", async () => {
         });
 
         // The tool result should reference a temp file under the session state path
-        const messages = await session.getMessages();
+        const messages = await session.getEvents();
         const toolResult = findToolCallResult(messages, "get_big_string");
         expect(toolResult).toContain(`${sessionStatePath}/temp/`);
         const filename = toolResult?.match(
@@ -162,7 +162,7 @@ describe("Session Fs", async () => {
     it("should write workspace metadata via sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         const msg = await session.sendAndWait({ prompt: "What is 7 * 8?" });
@@ -184,7 +184,7 @@ describe("Session Fs", async () => {
     it("should persist plan.md via sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         // Write a plan via the session RPC
@@ -202,7 +202,7 @@ describe("Session Fs", async () => {
     it("should succeed with compaction while using sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         let compactionEvent: SessionCompactionCompleteEvent | undefined;

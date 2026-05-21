@@ -512,7 +512,7 @@ describe("Pending work resume", async () => {
                 });
 
                 // Verify resume event has continuePendingWork: false and sessionWasActive: true
-                const messages = await session2.getMessages();
+                const messages = await session2.getEvents();
                 const resumeEvent = messages.find((m) => m.type === "session.resume");
                 expect(resumeEvent).toBeDefined();
                 expect(resumeEvent!.data.continuePendingWork).toBe(false);
@@ -577,7 +577,7 @@ describe("Pending work resume", async () => {
             });
 
             // Verify resume event has continuePendingWork: true and sessionWasActive: false
-            const messages = await resumedSession.getMessages();
+            const messages = await resumedSession.getEvents();
             const resumeEvent = messages.find((m) => m.type === "session.resume");
             expect(resumeEvent).toBeDefined();
             expect(resumeEvent!.data.continuePendingWork).toBe(true);

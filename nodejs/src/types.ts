@@ -613,7 +613,7 @@ export type ElicitationHandler = (
 /**
  * Options for the `input()` convenience method.
  */
-export interface InputOptions {
+export interface UiInputOptions {
     /** Title label for the input field. */
     title?: string;
     /** Descriptive text shown below the field. */
@@ -658,7 +658,7 @@ export interface SessionUiApi {
      * Returns the entered text, or `null` if the user declines/cancels.
      * @throws Error if the host does not support elicitation.
      */
-    input(message: string, options?: InputOptions): Promise<string | null>;
+    input(message: string, options?: UiInputOptions): Promise<string | null>;
 }
 
 export interface ToolCallRequestPayload {
@@ -1413,13 +1413,13 @@ export interface SessionConfig {
      * Handler for exit-plan-mode requests from the agent.
      * When provided, enables `exitPlanMode.request` callbacks.
      */
-    onExitPlanMode?: ExitPlanModeHandler;
+    onExitPlanModeRequest?: ExitPlanModeHandler;
 
     /**
      * Handler for auto-mode-switch requests from the agent.
      * When provided, enables `autoModeSwitch.request` callbacks.
      */
-    onAutoModeSwitch?: AutoModeSwitchHandler;
+    onAutoModeSwitchRequest?: AutoModeSwitchHandler;
 
     /**
      * Hook handlers for intercepting session lifecycle events.
@@ -1542,7 +1542,7 @@ export interface SessionConfig {
      * Supplies a handler for session filesystem operations. This takes effect
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
-    createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider;
+    createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
 }
 
 /**
@@ -1566,8 +1566,8 @@ export type ResumeSessionConfig = Pick<
     | "onPermissionRequest"
     | "onUserInputRequest"
     | "onElicitationRequest"
-    | "onExitPlanMode"
-    | "onAutoModeSwitch"
+    | "onExitPlanModeRequest"
+    | "onAutoModeSwitchRequest"
     | "hooks"
     | "workingDirectory"
     | "configDir"
@@ -1583,14 +1583,14 @@ export type ResumeSessionConfig = Pick<
     | "gitHubToken"
     | "remoteSession"
     | "onEvent"
-    | "createSessionFsHandler"
+    | "createSessionFsProvider"
 > & {
     /**
      * When true, skips emitting the session.resume event.
      * Useful for reconnecting to a session without triggering resume-related side effects.
      * @default false
      */
-    disableResume?: boolean;
+    suppressResumeEvent?: boolean;
     /**
      * When true, the runtime continues any tool calls or permission prompts that were
      * still pending when the session was last suspended. When false (the default), the
@@ -1673,7 +1673,7 @@ export interface ProviderConfig {
      * prompt (system message, history, tool definitions, user message) would
      * exceed this limit.
      */
-    maxInputTokens?: number;
+    maxPromptTokens?: number;
 
     /**
      * Overrides the resolved model's default max output tokens. When hit, the

@@ -24,7 +24,7 @@ import type {
     ExitPlanModeHandler,
     ExitPlanModeRequest,
     ExitPlanModeResult,
-    InputOptions,
+    UiInputOptions,
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
@@ -163,7 +163,7 @@ export class CopilotSession {
             elicitation: (params: ElicitationParams) => this._elicitation(params),
             confirm: (message: string) => this._confirm(message),
             select: (message: string, options: string[]) => this._select(message, options),
-            input: (message: string, options?: InputOptions) => this._input(message, options),
+            input: (message: string, options?: UiInputOptions) => this._input(message, options),
         };
     }
 
@@ -770,7 +770,7 @@ export class CopilotSession {
         return null;
     }
 
-    private async _input(message: string, options?: InputOptions): Promise<string | null> {
+    private async _input(message: string, options?: UiInputOptions): Promise<string | null> {
         this.assertElicitation();
         const field: Record<string, unknown> = { type: "string" as const };
         if (options?.title) field.title = options.title;
@@ -983,7 +983,7 @@ export class CopilotSession {
      *
      * @example
      * ```typescript
-     * const events = await session.getMessages();
+     * const events = await session.getEvents();
      * for (const event of events) {
      *   if (event.type === "assistant.message") {
      *     console.log("Assistant:", event.data.content);
@@ -991,7 +991,7 @@ export class CopilotSession {
      * }
      * ```
      */
-    async getMessages(): Promise<SessionEvent[]> {
+    async getEvents(): Promise<SessionEvent[]> {
         const response = await this.connection.sendRequest("session.getMessages", {
             sessionId: this.sessionId,
         });
