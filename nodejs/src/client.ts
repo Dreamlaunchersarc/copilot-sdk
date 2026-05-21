@@ -1881,7 +1881,26 @@ export class CopilotClient {
             return;
         }
 
-        const event = notification as SessionLifecycleEvent;
+        const raw = notification as {
+            type: SessionLifecycleEventType;
+            sessionId: string;
+            metadata?: { startTime?: string; modifiedTime?: string; summary?: string };
+        };
+
+        let metadata: SessionLifecycleEvent["metadata"];
+        if (raw.metadata && raw.metadata.startTime && raw.metadata.modifiedTime) {
+            metadata = {
+                startTime: new Date(raw.metadata.startTime),
+                modifiedTime: new Date(raw.metadata.modifiedTime),
+                summary: raw.metadata.summary,
+            };
+        }
+
+        const event = {
+            type: raw.type,
+            sessionId: raw.sessionId,
+            metadata,
+        } as SessionLifecycleEvent;
 
         // Dispatch to typed handlers for this specific event type
         const typedHandlers = this.typedLifecycleHandlers.get(event.type);

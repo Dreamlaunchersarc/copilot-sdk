@@ -1926,7 +1926,7 @@ export interface ModelInfo {
 // ============================================================================
 
 /**
- * Types of session lifecycle events
+ * Types of session lifecycle events.
  */
 export type SessionLifecycleEventType =
     | "session.created"
@@ -1936,32 +1936,77 @@ export type SessionLifecycleEventType =
     | "session.background";
 
 /**
- * Session lifecycle event notification
- * Sent when sessions are created, deleted, updated, or change foreground/background state
+ * Metadata payload for session lifecycle events. Not present on
+ * `session.deleted` events.
  */
-export interface SessionLifecycleEvent {
-    /** Type of lifecycle event */
-    type: SessionLifecycleEventType;
-    /** ID of the session this event relates to */
+export interface SessionLifecycleEventMetadata {
+    /** Time the session was created. */
+    startTime: Date;
+    /** Time the session was last modified. */
+    modifiedTime: Date;
+    /** Human-readable summary of the session, if available. */
+    summary?: string;
+}
+
+/** Base shape shared by every lifecycle event variant. */
+interface SessionLifecycleEventBase {
+    /** ID of the session this event relates to. */
     sessionId: string;
-    /** Session metadata (not included for deleted sessions) */
-    metadata?: {
-        startTime: string;
-        modifiedTime: string;
-        summary?: string;
-    };
+    /** Session metadata (not included for `session.deleted`). */
+    metadata?: SessionLifecycleEventMetadata;
+}
+
+/** Emitted when a new session is created. */
+export interface SessionCreatedEvent extends SessionLifecycleEventBase {
+    type: "session.created";
+    metadata: SessionLifecycleEventMetadata;
+}
+
+/** Emitted when a session is deleted. The metadata field is omitted. */
+export interface SessionDeletedEvent extends SessionLifecycleEventBase {
+    type: "session.deleted";
+    metadata?: undefined;
+}
+
+/** Emitted when a session's metadata is updated. */
+export interface SessionUpdatedEvent extends SessionLifecycleEventBase {
+    type: "session.updated";
+    metadata: SessionLifecycleEventMetadata;
+}
+
+/** Emitted when a session is brought to the foreground (TUI+server mode). */
+export interface SessionForegroundEvent extends SessionLifecycleEventBase {
+    type: "session.foreground";
+    metadata: SessionLifecycleEventMetadata;
+}
+
+/** Emitted when a session is moved to the background (TUI+server mode). */
+export interface SessionBackgroundEvent extends SessionLifecycleEventBase {
+    type: "session.background";
+    metadata: SessionLifecycleEventMetadata;
 }
 
 /**
- * Handler for session lifecycle events
+ * Discriminated union of all session lifecycle events emitted in TUI+server mode.
+ * Switch on `type` to access the variant-specific metadata.
+ */
+export type SessionLifecycleEvent =
+    | SessionCreatedEvent
+    | SessionDeletedEvent
+    | SessionUpdatedEvent
+    | SessionForegroundEvent
+    | SessionBackgroundEvent;
+
+/**
+ * Handler for session lifecycle events.
  */
 export type SessionLifecycleHandler = (event: SessionLifecycleEvent) => void;
 
 /**
- * Typed handler for specific session lifecycle event types
+ * Typed handler for specific session lifecycle event types.
  */
 export type TypedSessionLifecycleHandler<K extends SessionLifecycleEventType> = (
-    event: SessionLifecycleEvent & { type: K }
+    event: Extract<SessionLifecycleEvent, { type: K }>
 ) => void;
 
 /**
