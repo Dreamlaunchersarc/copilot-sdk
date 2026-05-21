@@ -120,17 +120,6 @@ export interface CopilotClientOptions {
     logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all";
 
     /**
-     * Auto-start the CLI server on first use
-     * @default true
-     */
-    autoStart?: boolean;
-
-    /**
-     * @deprecated This option has no effect and will be removed in a future release.
-     */
-    autoRestart?: boolean;
-
-    /**
      * Environment variables to pass to the CLI process. If not set, inherits process.env.
      */
     env?: Record<string, string | undefined>;
@@ -1145,9 +1134,11 @@ export interface SessionHooks {
  */
 interface MCPServerConfigBase {
     /**
-     * List of tools to include from this server. [] means none. "*" means all.
+     * List of tools to include from this server.
+     * `undefined` (the default) or `"*"` means include all tools.
+     * `[]` means include none.
      */
-    tools: string[];
+    tools?: string[];
     /**
      * Indicates the server type: "stdio" for local/subprocess servers, "http"/"sse" for remote servers.
      * If not specified, defaults to "stdio".
@@ -1433,7 +1424,7 @@ export interface SessionConfig {
      */
     workingDirectory?: string;
 
-    /*
+    /**
      * Enable streaming of assistant message and reasoning chunks.
      * When true, ephemeral assistant.message_delta and assistant.reasoning_delta
      * events are sent as the response is generated. Clients should accumulate

@@ -144,8 +144,7 @@ describe("Client options", async () => {
         const client = new CopilotClient({
             cwd: workDir,
             env,
-            cliPath: process.env.COPILOT_CLI_PATH,
-            autoStart: false,
+            cliPath: process.env.COPILOT_CLI_PATH
         });
         onTestFinished(async () => {
             try {
@@ -247,7 +246,6 @@ describe("Client options", async () => {
         const client = new CopilotClient({
             cwd: workDir,
             env: { ...env, COPILOT_HOME: copilotHomeFromEnv },
-            autoStart: false,
             cliPath,
             cliArgs: ["--capture-file", capturePath],
             copilotHome: copilotHomeFromOption,

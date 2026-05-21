@@ -379,8 +379,6 @@ export class CopilotClient {
             isChildProcess: options.isChildProcess ?? false,
             cliUrl: options.cliUrl,
             logLevel: options.logLevel || "debug",
-            autoStart: options.autoStart ?? true,
-            autoRestart: false,
 
             env: effectiveEnv,
             gitHubToken: options.gitHubToken,
@@ -465,14 +463,14 @@ export class CopilotClient {
      * If connecting to an external server (via cliUrl), only establishes the connection.
      * Otherwise, spawns the CLI server process and then connects.
      *
-     * This method is called automatically when creating a session if `autoStart` is true (default).
+     * This method is called automatically the first time you create or resume a session.
      *
      * @returns A promise that resolves when the connection is established
      * @throws Error if the server fails to start or the connection fails
      *
      * @example
      * ```typescript
-     * const client = new CopilotClient({ autoStart: false });
+     * const client = new CopilotClient();
      * await client.start();
      * // Now ready to create sessions
      * ```
@@ -707,12 +705,11 @@ export class CopilotClient {
      * Creates a new conversation session with the Copilot CLI.
      *
      * Sessions maintain conversation state, handle events, and manage tool execution.
-     * If the client is not connected and `autoStart` is enabled, this will automatically
-     * start the connection.
+     * If the client is not connected, this method automatically starts the connection.
      *
      * @param config - Optional configuration for the session
      * @returns A promise that resolves with the created session
-     * @throws Error if the client is not connected and autoStart is disabled
+     * @throws Error if the client fails to start
      *
      * @example
      * ```typescript
@@ -734,11 +731,7 @@ export class CopilotClient {
      */
     async createSession(config: SessionConfig): Promise<CopilotSession> {
         if (!this.connection) {
-            if (this.options.autoStart) {
-                await this.start();
-            } else {
-                throw new Error("Client not connected. Call start() first.");
-            }
+            await this.start();
         }
 
         const sessionId = config.sessionId ?? randomUUID();
@@ -874,11 +867,7 @@ export class CopilotClient {
      */
     async resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession> {
         if (!this.connection) {
-            if (this.options.autoStart) {
-                await this.start();
-            } else {
-                throw new Error("Client not connected. Call start() first.");
-            }
+            await this.start();
         }
 
         // Create and register the session before issuing the RPC so that

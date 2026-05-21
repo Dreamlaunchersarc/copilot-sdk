@@ -8,13 +8,13 @@ import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 describe("CopilotClient", () => {
     it("allows createSession without onPermissionRequest", async () => {
-        const client = new CopilotClient({ autoStart: false });
+        const client = new CopilotClient({ });
 
         await expect(client.createSession({})).rejects.toThrow(/Client not connected/);
     });
 
     it("allows resumeSession without onPermissionRequest", async () => {
-        const client = new CopilotClient({ autoStart: false });
+        const client = new CopilotClient({ });
 
         await expect(client.resumeSession("session-1", {})).rejects.toThrow(/Client not connected/);
     });

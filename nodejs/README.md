@@ -415,7 +415,7 @@ Note: `assistant.message` and `assistant.reasoning` (final events) are always se
 ### Manual Server Control
 
 ```typescript
-const client = new CopilotClient({ autoStart: false });
+const client = new CopilotClient({ });
 
 // Start manually
 await client.start();
